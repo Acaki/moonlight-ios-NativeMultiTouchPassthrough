@@ -505,6 +505,42 @@
         }
       }
     },
+    "Ber-Z3-u3J.segmentTitles[0]" : {
+      "comment" : "Class = \"UISegmentedControl\"; Ber-Z3-u3J.segmentTitles[0] = \"Stereo\"; ObjectID = \"Ber-Z3-u3J\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stereo"
+          }
+        }
+      }
+    },
+    "Ber-Z3-u3J.segmentTitles[1]" : {
+      "comment" : "Class = \"UISegmentedControl\"; Ber-Z3-u3J.segmentTitles[1] = \"LPCM 5.1\"; ObjectID = \"Ber-Z3-u3J\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "LPCM 5.1"
+          }
+        }
+      }
+    },
+    "Ber-Z3-u3J.segmentTitles[2]" : {
+      "comment" : "Class = \"UISegmentedControl\"; Ber-Z3-u3J.segmentTitles[2] = \"LPCM 7.1\"; ObjectID = \"Ber-Z3-u3J\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "LPCM 7.1"
+          }
+        }
+      }
+    },
     "bFD-Ng-abn.text" : {
       "comment" : "Class = \"UILabel\"; text = \"Multi-Controller Mode                                                                   \"; ObjectID = \"bFD-Ng-abn\";",
       "extractionState" : "extracted_with_value",
@@ -933,6 +969,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "交换A/B键、X/Y键位置"
+          }
+        }
+      }
+    },
+    "e3Q-or-VxV.text" : {
+      "comment" : "Class = \"UILabel\"; text = \"Audio Configuration\"; ObjectID = \"e3Q-or-VxV\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Audio Configuration"
           }
         }
       }

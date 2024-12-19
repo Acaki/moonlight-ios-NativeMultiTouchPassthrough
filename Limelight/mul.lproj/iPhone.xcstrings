@@ -1357,6 +1357,18 @@
         }
       }
     },
+    "iLL-jv-ArI.text" : {
+      "comment" : "Class = \"UILabel\"; text = \"Audio Configuration\"; ObjectID = \"iLL-jv-ArI\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Audio Configuration"
+          }
+        }
+      }
+    },
     "Jps-kj-bYJ.text" : {
       "comment" : "Class = \"UILabel\"; text = \"Multi-Controller Mode                                                               \"; ObjectID = \"Jps-kj-bYJ\";",
       "extractionState" : "extracted_with_value",
@@ -1383,6 +1395,42 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "多手柄模式"
+          }
+        }
+      }
+    },
+    "K5A-ul-JMN.segmentTitles[0]" : {
+      "comment" : "Class = \"UISegmentedControl\"; K5A-ul-JMN.segmentTitles[0] = \"Stereo\"; ObjectID = \"K5A-ul-JMN\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stereo"
+          }
+        }
+      }
+    },
+    "K5A-ul-JMN.segmentTitles[1]" : {
+      "comment" : "Class = \"UISegmentedControl\"; K5A-ul-JMN.segmentTitles[1] = \"LPCM 5.1\"; ObjectID = \"K5A-ul-JMN\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "LPCM 5.1"
+          }
+        }
+      }
+    },
+    "K5A-ul-JMN.segmentTitles[2]" : {
+      "comment" : "Class = \"UISegmentedControl\"; K5A-ul-JMN.segmentTitles[2] = \"LPCM 7.1\"; ObjectID = \"K5A-ul-JMN\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "LPCM 7.1"
           }
         }
       }

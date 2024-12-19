@@ -32,6 +32,7 @@
 @property (strong, nonatomic) IBOutlet UISegmentedControl *pipSelector;
 @property (strong, nonatomic) IBOutlet UISegmentedControl *hdrSelector;
 @property (strong, nonatomic) IBOutlet UISegmentedControl *framePacingSelector;
+@property (strong, nonatomic) IBOutlet UISegmentedControl *audioConfigSelector;
 @property (strong, nonatomic) IBOutlet UISegmentedControl *btMouseSelector;
 @property (strong, nonatomic) IBOutlet UISegmentedControl *reverseMouseWheelDirectionSelector;
 @property (strong, nonatomic) IBOutlet UISegmentedControl *statsOverlaySelector;

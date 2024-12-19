@@ -675,6 +675,10 @@ static NSMutableSet* hostList;
     // Probe for supported channel configurations
     int physicalOutputChannels = (int)[AVAudioSession sharedInstance].maximumOutputNumberOfChannels;
     Log(LOG_I, @"Audio device supports %d channels", physicalOutputChannels);
+    if (@available(iOS 18.0, tvOS 18.0, *)) {
+        physicalOutputChannels = 8;
+        Log(LOG_I, @"System-provided spatial audio available, pretending device has %d channels", physicalOutputChannels);
+    }
     
     int numberOfChannels = MIN([streamSettings.audioConfig intValue], physicalOutputChannels);
     Log(LOG_I, @"Selected number of audio channels %d", numberOfChannels);
