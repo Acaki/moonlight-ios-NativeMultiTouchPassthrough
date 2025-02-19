@@ -1051,6 +1051,42 @@
         }
       }
     },
+    "fHL-Cn-5jR.segmentTitles[0]" : {
+      "comment" : "Class = \"UISegmentedControl\"; fHL-Cn-5jR.segmentTitles[0] = \"Auto\"; ObjectID = \"fHL-Cn-5jR\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auto"
+          }
+        }
+      }
+    },
+    "fHL-Cn-5jR.segmentTitles[1]" : {
+      "comment" : "Class = \"UISegmentedControl\"; fHL-Cn-5jR.segmentTitles[1] = \"Device Motion\"; ObjectID = \"fHL-Cn-5jR\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Device Motion"
+          }
+        }
+      }
+    },
+    "fHL-Cn-5jR.segmentTitles[2]" : {
+      "comment" : "Class = \"UISegmentedControl\"; fHL-Cn-5jR.segmentTitles[2] = \"Controller Motion\"; ObjectID = \"fHL-Cn-5jR\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Controller Motion"
+          }
+        }
+      }
+    },
     "FqF-bM-afQ.configuration.title" : {
       "comment" : "Class = \"UIButton\"; configuration.title = \"Go Back to Stream View\"; ObjectID = \"FqF-bM-afQ\";",
       "extractionState" : "extracted_with_value",
@@ -2631,6 +2667,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启用"
+          }
+        }
+      }
+    },
+    "Xs5-4F-kIP.text" : {
+      "comment" : "Class = \"UILabel\"; text = \"Player 1 Motion Mode\"; ObjectID = \"Xs5-4F-kIP\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Player 1 Motion Mode"
           }
         }
       }
