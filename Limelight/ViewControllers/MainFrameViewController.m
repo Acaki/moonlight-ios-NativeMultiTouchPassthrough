@@ -181,7 +181,7 @@ static NSMutableSet* hostList;
         AppListResponse* appListResp = [ConnectionHelper getAppListForHost:host];
         
         [self->_discMan resumeDiscoveryForHost:host];
-        
+
         if (![appListResp isStatusOk] || [appListResp getAppList] == nil) {
             Log(LOG_W, @"Failed to get applist: %@", appListResp.statusMessage);
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -204,7 +204,7 @@ static NSMutableSet* hostList;
         } else {
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self updateApplist:[appListResp getAppList] forHost:host];
-                
+
                 if (host != self->_selectedHost) {
                     [self hideLoadingFrame: nil];
                     return;
@@ -222,7 +222,7 @@ static NSMutableSet* hostList;
 - (void) updateAppEntry:(TemporaryApp*)app forHost:(TemporaryHost*)host {
     DataManager* database = [[DataManager alloc] init];
     NSMutableSet* newHostAppList = [NSMutableSet setWithSet:host.appList];
-    
+
     for (TemporaryApp* savedApp in newHostAppList) {
         if ([app.id isEqualToString:savedApp.id]) {
             savedApp.name = app.name;
@@ -230,7 +230,7 @@ static NSMutableSet* hostList;
             savedApp.hidden = app.hidden;
             
             host.appList = newHostAppList;
-            
+
             [database updateAppsForExistingHost:host];
             return;
         }
@@ -289,7 +289,7 @@ static NSMutableSet* hostList;
     } while (appWasRemoved);
     
     host.appList = newHostAppList;
-    
+
     [database updateAppsForExistingHost:host];
     
     // This host may be eligible for a shortcut now that the app list
@@ -451,11 +451,11 @@ static NSMutableSet* hostList;
 
 - (UIViewController*) activeViewController {
     UIViewController *topController = [UIApplication sharedApplication].keyWindow.rootViewController;
-    
+
     while (topController.presentedViewController) {
         topController = topController.presentedViewController;
     }
-    
+
     return topController;
 }
 
@@ -476,7 +476,7 @@ static NSMutableSet* hostList;
                 message = [LocalizationHelper localizedStringForKey:@"Online - Not Paired"];
             }
             break;
-            
+
         case StateUnknown:
             message = [LocalizationHelper localizedStringForKey:@"Connecting"];
             break;
@@ -579,7 +579,7 @@ static NSMutableSet* hostList;
     [alertController addAction:[UIAlertAction actionWithTitle:[LocalizationHelper localizedStringForKey:@"Cancel"] style:UIAlertActionStyleCancel handler:nil]];
     [alertController addAction:[UIAlertAction actionWithTitle:[LocalizationHelper localizedStringForKey:@"Ok"] style:UIAlertActionStyleDefault handler:^(UIAlertAction* action){
         NSString* hostAddress = [((UITextField*)[[alertController textFields] objectAtIndex:0]).text trim];
-                
+
         [self showLoadingFrame:^{
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
                 [self->_discMan discoverHost:hostAddress withCallback:^(TemporaryHost* host, NSString* error){
@@ -666,12 +666,13 @@ static NSMutableSet* hostList;
     _streamConfig.useFramePacing = streamSettings.useFramePacing;
     _streamConfig.swapABXYButtons = streamSettings.swapABXYButtons;
     _streamConfig.largerStickLR1 = streamSettings.largerStickLR1; // new streamConfig segment
-    
+    _streamConfig.motionMode = [streamSettings.motionMode intValue];
+
     // multiController must be set before calling getConnectedGamepadMask
     _streamConfig.multiController = streamSettings.multiController;
     _streamConfig.gamepadMask = [ControllerSupport getConnectedGamepadMask:_streamConfig];
     _streamConfig.localMousePointerMode = streamSettings.localMousePointerMode.intValue;
-    
+
     // Probe for supported channel configurations
     int physicalOutputChannels = (int)[AVAudioSession sharedInstance].maximumOutputNumberOfChannels;
     Log(LOG_I, @"Audio device supports %d channels", physicalOutputChannels);
@@ -687,7 +688,7 @@ static NSMutableSet* hostList;
     else {
         _streamConfig.audioConfiguration = AUDIO_CONFIGURATION_STEREO;
     }
-    
+
     
     switch (streamSettings.preferredCodec) {
         case CODEC_PREF_AV1:
@@ -1039,7 +1040,7 @@ static NSMutableSet* hostList;
 - (BOOL)isFullScreenRequired {
     NSDictionary *infoDictionary = [[NSBundle mainBundle] infoDictionary];
     NSNumber *requiresFullScreen = infoDictionary[@"UIRequiresFullScreen"];
-    
+
     if (requiresFullScreen != nil) {
         return [requiresFullScreen boolValue];
     }
@@ -1060,7 +1061,7 @@ static NSMutableSet* hostList;
         CGFloat labelHeight = 60;
         NSLog(@"fullscr: %d", [self isFullScreenRequired]);
         // the app is unable to automatically lock screen orientation in app window resizable mode(aka. not require fullscreen)
-        
+
         // if(![self isFullScreenRequired]){
         if(false){
             NSString* screenRotationTip = [LocalizationHelper localizedStringForKey:@"screenRotationTIp"];
@@ -1069,7 +1070,7 @@ static NSMutableSet* hostList;
             self->waterMark.font = [UIFont systemFontOfSize:19];
             labelHeight = 80;
         }
-        
+
         self->waterMark.textColor = UIColor.blackColor;
         self->waterMark.alpha = 0.35;
         self->waterMark.textAlignment = NSTextAlignmentCenter;
@@ -1111,7 +1112,7 @@ static NSMutableSet* hostList;
     self.settingsExpandedInStreamView = false; // init this flag
     self.revealViewController.isStreaming = false; //init this flag for rvlVC
     self.revealViewController.mainFrameIsInHostView = true;
-    
+
     // Set the side bar button action. When it's tapped, it'll show the sidebar.
     [_settingsButton setTarget:self.revealViewController];
     [_settingsButton setAction:@selector(revealToggle:)];
@@ -1165,7 +1166,7 @@ static NSMutableSet* hostList;
     }
     
     _boxArtCache = [[NSCache alloc] init];
-    
+
     //recordedScreenWidth = CGRectGetWidth([[UIScreen mainScreen] bounds]);
     hostScrollView = [[ComputerScrollView alloc] init];
     CGFloat screenWidthInPoints = CGRectGetWidth([[UIScreen mainScreen] bounds]);
@@ -1201,19 +1202,19 @@ static NSMutableSet* hostList;
     _discMan = [[DiscoveryManager alloc] initWithHosts:[hostList allObjects] andCallback:self];
     [self updateTitle];
     [self.view addSubview:hostScrollView];
-    
+
     if ([hostList count] == 1) [self hostClicked:[hostList anyObject] view:nil]; // auto click for single host
     //if([SettingsViewController isLandscapeNow] != _streamConfig.width > _streamConfig.height)
     //[self simulateSettingsButtonPress]; //force expand setting view if orientation changed since last quit from app.
     //[self simulateSettingsButtonPress]; //force expand setting view if orientation changed since last quit from app.
     //[self updateResolutionAccordingly];
-    
+
     // SettingsViewController* settingsViewController = (SettingsViewController*)[self.revealViewController rearViewController];
     // [settingsViewController updateResolutionTable];
 }
 
 -(void)handleRealOrientationChange{
-    
+
 }
 
 -(void)reloadScrollHostView{
@@ -1256,7 +1257,7 @@ static NSMutableSet* hostList;
 // this will also be called back when device orientation changes
 //- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
 //    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-//    
+//
 //    double delayInSeconds = 0.7;
 //    // Convert the delay into a dispatch_time_t value
 //    dispatch_time_t delayTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
@@ -1275,7 +1276,7 @@ static NSMutableSet* hostList;
     CGFloat appWindowHeight = CGRectGetHeight(window.frame) * screenScale;
     CGFloat screenWidthInPoints = CGRectGetWidth([[UIScreen mainScreen] bounds]);
     CGFloat screenHeightInPoints = CGRectGetHeight([[UIScreen mainScreen] bounds]);
-    
+
     if(currentSettings.externalDisplayMode.intValue == 1 && UIScreen.screens.count > 1){
         CGRect bounds = [UIScreen.screens.lastObject bounds];
         screenScale = [UIScreen.screens.lastObject scale];
@@ -1284,7 +1285,7 @@ static NSMutableSet* hostList;
     }
 
     bool needSwap = false;
-    
+
     if([self isFullScreenRequired]){ // if force fullscreen is enabled in app bundle, we use screen bounds to tell if a swap between width & height is needed
         needSwap = (currentSettings.width.floatValue - currentSettings.height.floatValue) * (screenWidthInPoints - screenHeightInPoints) < 0; //update the current resolution accordingly
         NSLog(@"need to swap width & height (non-app window mode): %d", needSwap);
@@ -1310,9 +1311,9 @@ static NSMutableSet* hostList;
             }
         }
     }
-    
-    
-    
+
+
+
     [dataMan saveData];
 }
 
@@ -1412,7 +1413,7 @@ static NSMutableSet* hostList;
                                              selector:@selector(handleOrientationChange) // //force expand settings view to update resolution table, and all setting includes current fullscreen resolution will be updated.
                                                  name:UIDeviceOrientationDidChangeNotification
                                                object:nil];
-    
+
     [[self revealViewController] setPrimaryViewController:self];
     self.revealViewController.isStreaming = false; // tell the revealViewController streaming is finished
     [self.settingsButton setEnabled:![self isIPhonePortrait]]; //make sure settings button is disabled in iphone portrait mode.

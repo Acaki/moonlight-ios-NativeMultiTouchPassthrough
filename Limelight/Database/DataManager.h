@@ -31,6 +31,7 @@
                   largerStickLR1:(BOOL)largerStickLR1
        liftStreamViewForKeyboard:(BOOL)liftStreamViewForKeyboard
              showKeyboardToolbar:(BOOL)showKeyboardToolbar
+                      motionMode:(NSInteger)motionMode
                    optimizeGames:(BOOL)optimizeGames
                  multiController:(BOOL)multiController
                  swapABXYButtons:(BOOL)swapABXYButtons

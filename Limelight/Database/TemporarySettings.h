@@ -32,6 +32,7 @@
 @property (nonatomic, retain) NSNumber * touchPointerVelocityFactor;
 @property (nonatomic, retain) NSNumber * mousePointerVelocityFactor;
 @property (nonatomic, retain) NSNumber * pointerVelocityModeDivider;
+@property (nonatomic, retain) NSNumber * motionMode;
 @property (nonatomic, retain) NSString * uniqueId;
 @property (nonatomic, retain) NSNumber * resolutionSelected;
 @property (nonatomic, retain) NSNumber * externalDisplayMode;

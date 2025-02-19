@@ -28,6 +28,7 @@
 @property BOOL playAudioOnPC;
 @property BOOL swapABXYButtons;
 @property BOOL largerStickLR1;
+@property int motionMode;
 @property int audioConfiguration;
 @property int supportedVideoFormats;
 @property BOOL multiController;

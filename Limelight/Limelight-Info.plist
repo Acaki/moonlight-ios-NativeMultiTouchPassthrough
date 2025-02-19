@@ -61,6 +61,8 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>NSMotionUsageDescription</key>
+	<string>Moonlight uses the device Gyro and Acceleration data to emulate motion controls when streaming.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

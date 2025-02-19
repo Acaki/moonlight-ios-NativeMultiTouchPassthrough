@@ -86,6 +86,7 @@
     self.onscreenControls = settings.onscreenControls;
     self.reverseMouseWheelDirection = settings.reverseMouseWheelDirection;
     self.largerStickLR1 = settings.largerStickLR1;
+    self.motionMode = settings.motionMode;
     self.btMouseSupport = settings.btMouseSupport;
     // self.absoluteTouchMode = settings.absoluteTouchMode;
     self.touchMode = settings.touchMode;

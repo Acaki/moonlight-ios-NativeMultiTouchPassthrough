@@ -70,6 +70,7 @@
                   largerStickLR1:(BOOL)largerStickLR1
        liftStreamViewForKeyboard:(BOOL)liftStreamViewForKeyboard
              showKeyboardToolbar:(BOOL)showKeyboardToolbar
+                      motionMode:(NSInteger)motionMode
                    optimizeGames:(BOOL)optimizeGames
                  multiController:(BOOL)multiController
                  swapABXYButtons:(BOOL)swapABXYButtons
@@ -108,6 +109,7 @@
         settingsToSave.largerStickLR1 = largerStickLR1;
         settingsToSave.liftStreamViewForKeyboard = liftStreamViewForKeyboard;
         settingsToSave.showKeyboardToolbar = showKeyboardToolbar;
+        settingsToSave.motionMode = [NSNumber numberWithInteger:motionMode];
         settingsToSave.optimizeGames = optimizeGames;
         settingsToSave.multiController = multiController;
         settingsToSave.swapABXYButtons = swapABXYButtons;
