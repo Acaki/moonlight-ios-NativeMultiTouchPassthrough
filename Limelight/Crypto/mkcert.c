@@ -4,12 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <openssl/evp.h>
 #include <openssl/pem.h>
-#include <OpenSSL/provider.h>
-#include <OpenSSL/rsa.h>
+#include <openssl/rsa.h>
 #include <openssl/x509.h>
-#include <OpenSSL/rand.h>
+#include <openssl/rand.h>
 
 static const int NUM_BITS = 2048;
 static const int SERIAL = 0;
@@ -63,29 +61,21 @@ void mkcert(X509 **x509p, EVP_PKEY **pkeyp, int bits, int serial, int years) {
 }
 
 struct CertKeyPair generateCertKeyPair(void) {
+    BIO *bio_err;
     X509 *x509 = NULL;
     EVP_PKEY *pkey = NULL;
     PKCS12 *p12 = NULL;
+   
+    bio_err = BIO_new_fp(stderr, BIO_NOCLOSE);
     
     mkcert(&x509, &pkey, NUM_BITS, SERIAL, NUM_YEARS);
-    
-    char* pass = "limelight";
-    p12 = PKCS12_create(pass,
-                        "GameStream",
-                        pkey,
-                        x509,
-                        NULL,
-                        NID_pbe_WithSHA1And3_Key_TripleDES_CBC,
-                        -1, // disable certificate encryption
-                        2048,
-                        -1, // disable the automatic MAC
-                        0);
-    // MAC it ourselves with SHA1 since iOS refuses to load anything else.
-    PKCS12_set_mac(p12, pass, -1, NULL, 0, 1, EVP_sha1());
-    
+
+    p12 = PKCS12_create("limelight", "GameStream", pkey, x509, NULL, 0, 0, 0, 0, 0);
     if (p12 == NULL) {
         printf("Error generating a valid PKCS12 certificate.\n");
     }
+    
+    BIO_free(bio_err);
     
     return (CertKeyPair){x509, pkey, p12};
 }

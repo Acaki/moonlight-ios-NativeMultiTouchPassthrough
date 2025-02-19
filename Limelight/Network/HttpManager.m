@@ -23,14 +23,20 @@
 #define EXTRA_LONG_TIMEOUT_SEC 180
 
 @implementation HttpManager {
+    NSURLSession* _urlSession;
     NSString* _urlSafeHostName;
     NSString* _baseHTTPURL;
     NSString* _uniqueId;
     NSString* _deviceName;
     NSData* _serverCert;
+    NSMutableData* _respData;
+    NSData* _requestResp;
+    dispatch_semaphore_t _requestLock;
     
     TemporaryHost *_host; // May be nil
     NSString* _baseHTTPSURL;
+    
+    NSError* _error;
 }
 
 + (NSData*) fixXmlVersion:(NSData*) xmlData {
@@ -57,6 +63,10 @@
     _uniqueId = @"0123456789ABCDEF";
     _deviceName = deviceName;
     _serverCert = serverCert;
+    _requestLock = dispatch_semaphore_create(0);
+    _respData = [[NSMutableData alloc] init];
+    NSURLSessionConfiguration* config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    _urlSession = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
     
     NSString* address = [Utils addressPortStringToAddress:hostAddressPortString];
     unsigned short port = [Utils addressPortStringToPort:hostAddressPortString];
@@ -115,40 +125,37 @@
         
         return;
     }
-
-    __block NSData* requestResp = nil;
-    __block NSError* respError = nil;
-    __block dispatch_semaphore_t requestLock = dispatch_semaphore_create(0);
+    
+    [_respData setLength:0];
+    _error = nil;
     
     Log(LOG_D, @"Making Request: %@", request);
-    NSURLSession* urlSession = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration ephemeralSessionConfiguration] delegate:self delegateQueue:nil];
-    [[urlSession dataTaskWithRequest:request.request completionHandler:^(NSData * __nullable data, NSURLResponse * __nullable response, NSError * __nullable error) {
+    [[_urlSession dataTaskWithRequest:request.request completionHandler:^(NSData * __nullable data, NSURLResponse * __nullable response, NSError * __nullable error) {
         
         if (error != NULL) {
             Log(LOG_D, @"Connection error: %@", error);
-            respError = error;
+            self->_error = error;
         }
         else {
             Log(LOG_D, @"Received response: %@", response);
 
             if (data != NULL) {
                 Log(LOG_D, @"\n\nReceived data: %@\n\n", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-                if ([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] != nil) {
-                    requestResp = [HttpManager fixXmlVersion:data];
+                [self->_respData appendData:data];
+                if ([[NSString alloc] initWithData:self->_respData encoding:NSUTF8StringEncoding] != nil) {
+                    self->_requestResp = [HttpManager fixXmlVersion:self->_respData];
                 } else {
-                    requestResp = data;
+                    self->_requestResp = self->_respData;
                 }
             }
         }
         
-        dispatch_semaphore_signal(requestLock);
+        dispatch_semaphore_signal(self->_requestLock);
     }] resume];
+    dispatch_semaphore_wait(_requestLock, DISPATCH_TIME_FOREVER);
     
-    dispatch_semaphore_wait(requestLock, DISPATCH_TIME_FOREVER);
-    [urlSession invalidateAndCancel];
-    
-    if (!respError && request.response) {
-        [request.response populateWithData:requestResp];
+    if (!_error && request.response) {
+        [request.response populateWithData:_requestResp];
         
         // If the fallback error code was detected, issue the fallback request
         if (request.response.statusCode == request.fallbackError && request.fallbackRequest != NULL) {
@@ -159,7 +166,7 @@
             [self executeRequestSynchronously:request];
         }
     }
-    else if (respError && [respError code] == NSURLErrorServerCertificateUntrusted) {
+    else if (_error && [_error code] == NSURLErrorServerCertificateUntrusted) {
         // We must have a pinned cert for HTTPS. If we fail, it must be due to
         // a non-matching cert, not because we had no cert at all.
         assert(_serverCert != nil);
@@ -174,9 +181,9 @@
             [self executeRequestSynchronously:request];
         }
     }
-    else if (respError && request.response) {
-        request.response.statusCode = [respError code];
-        request.response.statusMessage = [respError localizedDescription];
+    else if (_error && request.response) {
+        request.response.statusCode = [_error code];
+        request.response.statusMessage = [_error localizedDescription];
     }
 }
 
@@ -319,7 +326,7 @@
     
     SecIdentityCopyCertificate(identity, &certificate);
     
-    return [[NSArray alloc] initWithObjects:(__bridge_transfer id)certificate, nil];
+    return [[NSArray alloc] initWithObjects:(__bridge id)certificate, nil];
 }
 
 // Returns the identity
@@ -331,14 +338,13 @@
     const void *keys[] = { kSecImportExportPassphrase };
     const void *values[] = { password };
     CFDictionaryRef options = CFDictionaryCreate(NULL, keys, values, 1, NULL, NULL);
-    CFArrayRef items = nil;
+    CFArrayRef items = CFArrayCreate(NULL, 0, 0, NULL);
     OSStatus securityError = SecPKCS12Import(p12Data, options, &items);
 
     if (securityError == errSecSuccess) {
         //Log(LOG_D, @"Success opening p12 certificate. Items: %ld", CFArrayGetCount(items));
         CFDictionaryRef identityDict = CFArrayGetValueAtIndex(items, 0);
-        identityApp = (SecIdentityRef)CFRetain(CFDictionaryGetValue(identityDict, kSecImportItemIdentity));
-        CFRelease(items);
+        identityApp = (SecIdentityRef)CFDictionaryGetValue(identityDict, kSecImportItemIdentity);
     } else {
         Log(LOG_E, @"Error opening Certificate.");
     }
@@ -392,7 +398,6 @@
         SecIdentityRef identity = [self getClientCertificate];
         NSArray* certArray = [self getCertificate:identity];
         NSURLCredential* newCredential = [NSURLCredential credentialWithIdentity:identity certificates:certArray persistence:NSURLCredentialPersistencePermanent];
-        CFRelease(identity);
         completionHandler(NSURLSessionAuthChallengeUseCredential, newCredential);
     }
     else
