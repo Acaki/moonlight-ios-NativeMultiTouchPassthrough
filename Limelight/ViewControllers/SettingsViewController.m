@@ -402,8 +402,14 @@ BOOL isCustomResolution(CGSize res) {
         case 60:
             framerate = 1;
             break;
-        case 120:
+        case 80:
             framerate = 2;
+            break;
+        case 90:
+            framerate = 3;
+            break;
+        case 120:
+            framerate = 4;
             break;
     }
 
@@ -838,7 +844,7 @@ BOOL isCustomResolution(CGSize res) {
         [self promptCustomResolutionDialog];
     }
     else {
-        [self updateBitrate];
+//        [self updateBitrate];
         [self updateResolutionDisplayViewText];
         _lastSelectedResolutionIndex = [self.resolutionSelector selectedSegmentIndex];
     }
@@ -907,7 +913,7 @@ BOOL isCustomResolution(CGSize res) {
         height = MAX(height, 256);
 
         resolutionTable[RESOLUTION_TABLE_CUSTOM_INDEX] = CGSizeMake(width, height);
-        [self updateBitrate];
+//        [self updateBitrate];
         [self updateResolutionDisplayViewText];
         self->_lastSelectedResolutionIndex = [self.resolutionSelector selectedSegmentIndex];
         
@@ -1000,6 +1006,10 @@ BOOL isCustomResolution(CGSize res) {
         case 1:
             return 60;
         case 2:
+            return 80;
+        case 3:
+            return 90;
+        case 4:
             return 120;
         default:
             abort();

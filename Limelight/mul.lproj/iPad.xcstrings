@@ -1526,7 +1526,31 @@
       }
     },
     "lGK-vl-pdw.segmentTitles[2]" : {
-      "comment" : "Class = \"UISegmentedControl\"; lGK-vl-pdw.segmentTitles[2] = \"120 FPS\"; ObjectID = \"lGK-vl-pdw\";",
+      "comment" : "Class = \"UISegmentedControl\"; lGK-vl-pdw.segmentTitles[2] = \"80 FPS\"; ObjectID = \"lGK-vl-pdw\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "80 FPS"
+          }
+        }
+      }
+    },
+    "lGK-vl-pdw.segmentTitles[3]" : {
+      "comment" : "Class = \"UISegmentedControl\"; lGK-vl-pdw.segmentTitles[3] = \"90 FPS\"; ObjectID = \"lGK-vl-pdw\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "90 FPS"
+          }
+        }
+      }
+    },
+    "lGK-vl-pdw.segmentTitles[4]" : {
+      "comment" : "Class = \"UISegmentedControl\"; lGK-vl-pdw.segmentTitles[4] = \"120 FPS\"; ObjectID = \"lGK-vl-pdw\";",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
