@@ -85,7 +85,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
     framePacing = useFramePacing;
-    
+    _lastDecodeTime = 0.0f;
+
     parameterSetBuffers = [[NSMutableArray alloc] init];
     
     [self reinitializeDisplayLayer];
@@ -111,33 +112,82 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 }
 
-// TODO: Refactor this
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
-- (void)displayLinkCallback:(CADisplayLink *)sender
+- (void)displayLinkCallback:(CADisplayLink *)link
 {
     VIDEO_FRAME_HANDLE handle;
     PDECODE_UNIT du;
-    
-    while (LiPollNextVideoFrame(&handle, &du)) {
-        LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du));
-        
-        if (framePacing) {
-            // Calculate the actual display refresh rate
-            double displayRefreshRate = 1 / (_displayLink.targetTimestamp - _displayLink.timestamp);
-            
-            // Only pace frames if the display refresh rate is >= 90% of our stream frame rate.
-            // Battery saver, accessibility settings, or device thermals can cause the actual
-            // refresh rate of the display to drop below the physical maximum.
-            if (displayRefreshRate >= frameRate * 0.9f) {
-                // Keep one pending frame to smooth out gaps due to
-                // network jitter at the cost of 1 frame of latency
-                if (LiGetPendingVideoFrames() == 1) {
-                    break;
-                }
-            }
-        }
+
+    CFTimeInterval nowStart = CACurrentMediaTime();
+    CFTimeInterval start = link.timestamp;
+    CFTimeInterval deadline = link.targetTimestamp;
+
+    // |------------------<-current frame->-------------------|
+    // |--------|---------------------------------------------|
+    // start   nowStart                                    deadline
+
+    // The number of frames we'd like to leave pending as a buffer
+    // TODO: make this a pref slider. Experiment with a value of 0.
+    int desiredBufferSize = 1;
+
+    // Pre-buffer enough frames based on the user's desired buffer size.
+    // Running with zero should be possible on a good wired network, but 1 is a better default.
+    int pendingAtStart = LiGetPendingVideoFrames();
+    if (pendingAtStart < desiredBufferSize) {
+        // don't process any frames yet. This will cause a hitch but
+        // should only occur at the start of streaming.
+        Log(LOG_D, @"[%d/%d] buffering...", pendingAtStart, desiredBufferSize);
+        return;
     }
+
+    // The goal is to process as many frames as we can without exceeding our deadline (targetTimestamp).
+    // We also want to maintain a buffer of N frames configured by the user. A do/while loop is used so that
+    // we always process at least 1 frame. A while loop could cause a situation where the frames
+    // get offset and each callback ends up handling 0 / 2 / 0 / 2 frames. We are not actually doing any frame
+    // pacing here, as that will be automatically handled by the OS in AVSampleBufferDisplayLayer.
+    int framesProcessed = 0;
+    do {
+        if (!LiWaitForNextVideoFrame(&handle, &du)) {
+            // we're shutting down or something else has gone wrong
+            return;
+        }
+        framesProcessed++;
+        CFTimeInterval beforeDecode = CACurrentMediaTime();
+
+        LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du));
+
+        CFTimeInterval now = CACurrentMediaTime();
+        CFTimeInterval decodeTime = now - beforeDecode;
+
+        // The Connection object needs the decode time for stats during the above call to
+        // DrSubmitDecodeUnit(), so it's a bit awkward to pass this value. We'll just let
+        // it get the previous frame's decode time using the lastDecodeTime property.
+        _lastDecodeTime = decodeTime;
+
+        // Break out if we don't have enough time to decode another frame
+        if (now >= deadline || (deadline - now) < (decodeTime * 1.1)) {
+            break;
+        }
+    } while (LiGetPendingVideoFrames() > desiredBufferSize);
+
+#ifdef DEBUG
+    CFTimeInterval nowEnd = CACurrentMediaTime();
+    int pendingAtEnd = LiGetPendingVideoFrames();
+    double displayRefreshRate = 1.0f / (deadline - start);
+    if (nowEnd > deadline) {
+        Log(LOG_I, @"[%f fps] [%d/%d] displayLink NOT ok, decoded %d frames in %f but took %f too long",
+            displayRefreshRate,
+            pendingAtStart, pendingAtEnd,
+            framesProcessed, nowEnd - nowStart, nowEnd - deadline);
+    }
+    else {
+        Log(LOG_I, @"[%f fps] [%d/%d] displayLink ok, decoded %d frames in %f with %f to spare",
+            displayRefreshRate,
+            pendingAtStart, pendingAtEnd,
+            framesProcessed, nowEnd - nowStart, deadline - nowEnd);
+    }
+#endif
 }
 
 - (void)stop

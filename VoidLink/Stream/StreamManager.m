@@ -169,7 +169,7 @@
     
     NSString* hostProcessingString;
     if (stats.framesWithHostProcessingLatency != 0) {
-        hostProcessingString = [NSString stringWithFormat:@"\nHost processing latency min/max/avg: %.1f/%.1f/%.1f ms",
+        hostProcessingString = [NSString stringWithFormat:@"Host processing latency min/max/avg: %.1f/%.1f/%.1f ms\n",
                                 stats.minHostProcessingLatency / 10.f,
                                 stats.maxHostProcessingLatency / 10.f,
                                 (float)stats.totalHostProcessingLatency / stats.framesWithHostProcessingLatency / 10.f];
@@ -179,14 +179,24 @@
     }
     
     float interval = stats.endTime - stats.startTime;
-    return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\nFrames dropped by your network connection: %.2f%%\nAverage network latency: %@%@",
+    float fps = stats.totalFrames / interval;
+    int bufferedFrames = LiGetPendingVideoFrames();
+
+    return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\n"
+            "%@"
+            "Frames dropped by your network connection: %.2f%%\n"
+            "Average network latency: %@\n"
+            "Average decoding time: %.2f ms, buffered frames: %d/%.2f ms",
             _config.width,
             _config.height,
-            stats.totalFrames / interval,
+            fps,
             [_connection getActiveCodecName],
+            hostProcessingString,
             stats.networkDroppedFrames / interval,
             latencyString,
-            hostProcessingString];
+            stats.totalDecodeTime * 1000.0f / stats.totalFrames,
+            bufferedFrames,
+            bufferedFrames * (1000.0f / fps)];
 }
 
 @end
