@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4A37FDA52DCAD28F00441192 /* PaddedLabel.m in Sources */ = {isa = PBXBuildFile; fileRef = 4A37FDA42DCAD28F00441192 /* PaddedLabel.m */; };
+		4A37FDA62DCAD28F00441192 /* PaddedLabel.m in Sources */ = {isa = PBXBuildFile; fileRef = 4A37FDA42DCAD28F00441192 /* PaddedLabel.m */; };
 		693B3A9B218638CD00982F7B /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 693B3A9A218638CD00982F7B /* Settings.bundle */; };
 		98181BE92791277400E43572 /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 98181BE82791275D00E43572 /* libSDL2.a */; };
 		98181BEB2791278F00E43572 /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 98181BEA2791278300E43572 /* libSDL2.a */; };
@@ -170,6 +172,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4A37FDA32DCAD28F00441192 /* PaddedLabel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PaddedLabel.h; sourceTree = "<group>"; };
+		4A37FDA42DCAD28F00441192 /* PaddedLabel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PaddedLabel.m; sourceTree = "<group>"; };
 		566E9D2B2770B23A00EF7BFE /* Moonlight v1.7.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.7.xcdatamodel"; sourceTree = "<group>"; };
 		693B3A9A218638CD00982F7B /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		9803CCAB254F9EAF00EE185E /* ConnectionCallbacks.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ConnectionCallbacks.h; sourceTree = "<group>"; };
@@ -562,6 +566,8 @@
 				FB89462219F646E200339C8A /* Utils.m */,
 				FBD1C8E01A8AD69E00C6703C /* Logger.h */,
 				FBD1C8E11A8AD71400C6703C /* Logger.m */,
+				4A37FDA32DCAD28F00441192 /* PaddedLabel.h */,
+				4A37FDA42DCAD28F00441192 /* PaddedLabel.m */,
 			);
 			path = Utility;
 			sourceTree = "<group>";
@@ -854,6 +860,7 @@
 				FB1A67CF213245F800507771 /* TemporaryApp.m in Sources */,
 				FB1A67D1213245F800507771 /* TemporaryHost.m in Sources */,
 				FB1A67D3213245F800507771 /* TemporarySettings.m in Sources */,
+				4A37FDA52DCAD28F00441192 /* PaddedLabel.m in Sources */,
 				FB1A67C3213245EA00507771 /* AppAssetManager.m in Sources */,
 				FB1A67C5213245EA00507771 /* AppAssetRetriever.m in Sources */,
 				FB1A67C7213245EA00507771 /* PairManager.m in Sources */,
@@ -900,6 +907,7 @@
 				9897B6A1221260EF00966419 /* Controller.m in Sources */,
 				FB89462919F646E200339C8A /* mkcert.c in Sources */,
 				FB9AFD281A7C84ED00872C98 /* HttpResponse.m in Sources */,
+				4A37FDA62DCAD28F00441192 /* PaddedLabel.m in Sources */,
 				FBDE86E019F7A837001C18A8 /* UIComputerView.m in Sources */,
 				FB89463019F646E200339C8A /* StreamConfiguration.m in Sources */,
 				FBD3495319FF36FB002D2A60 /* SWRevealViewController.m in Sources */,

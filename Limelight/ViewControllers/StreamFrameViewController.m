@@ -12,6 +12,7 @@
 #import "StreamManager.h"
 #import "ControllerSupport.h"
 #import "DataManager.h"
+#import "PaddedLabel.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -39,7 +40,7 @@
     UITapGestureRecognizer *_menuTapGestureRecognizer;
     UITapGestureRecognizer *_menuDoubleTapGestureRecognizer;
     UITapGestureRecognizer *_playPauseTapGestureRecognizer;
-    UITextView *_overlayView;
+    PaddedLabel *_overlayView;
     UILabel *_stageLabel;
     UILabel *_tipLabel;
     UIActivityIndicatorView *_spinner;
@@ -263,13 +264,17 @@
 
 - (void)updateOverlayText:(NSString*)text {
     if (_overlayView == nil) {
-        _overlayView = [[UITextView alloc] init];
+        _overlayView = [[PaddedLabel alloc] initWithFrame:CGRectZero];
+        [_overlayView setTextInsets:UIEdgeInsetsMake(10, 15, 10, 15)];
+        
 #if !TARGET_OS_TV
         [_overlayView setEditable:NO];
 #endif
+        
         [_overlayView setUserInteractionEnabled:NO];
-        [_overlayView setSelectable:NO];
-        [_overlayView setScrollEnabled:NO];
+        [_overlayView setNumberOfLines:100];
+        [_overlayView.layer setCornerRadius:12];
+        [_overlayView.layer setMasksToBounds:YES];
         
         // HACK: If not using stats overlay, center the text
         if (_statsUpdateTimer == nil) {
@@ -279,11 +284,11 @@
         [_overlayView setTextColor:[UIColor lightGrayColor]];
         [_overlayView setBackgroundColor:[UIColor blackColor]];
 #if TARGET_OS_TV
-        [_overlayView setFont:[UIFont systemFontOfSize:24]];
+        [_overlayView setFont:[UIFont systemFontOfSize:24 weight:UIFontWeightMedium]];
 #else
-        [_overlayView setFont:[UIFont systemFontOfSize:12]];
+        [_overlayView setFont:[UIFont systemFontOfSize:12 weight:UIFontWeightMedium]];
 #endif
-        [_overlayView setAlpha:0.5];
+        [_overlayView setAlpha:0.6];
         [self.view addSubview:_overlayView];
     }
     
@@ -297,7 +302,7 @@
                                            _overlayView.frame.size.height)];
         [_overlayView setText:text];
         [_overlayView sizeToFit];
-        [_overlayView setCenter:CGPointMake(self.view.frame.size.width / 2, _overlayView.frame.size.height / 2)];
+        [_overlayView setCenter:CGPointMake(self.view.frame.size.width / 2, (12 + (_overlayView.frame.size.height / 2)))];
         [_overlayView setHidden:NO];
     }
     else {
