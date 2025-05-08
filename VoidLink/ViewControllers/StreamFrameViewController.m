@@ -266,11 +266,6 @@
     if (_overlayView == nil) {
         _overlayView = [[PaddedLabel alloc] initWithFrame:CGRectZero];
         [_overlayView setTextInsets:UIEdgeInsetsMake(10, 15, 10, 15)];
-        
-#if !TARGET_OS_TV
-        [_overlayView setEditable:NO];
-#endif
-        
         [_overlayView setUserInteractionEnabled:NO];
         [_overlayView setNumberOfLines:100];
         [_overlayView.layer setCornerRadius:12];
