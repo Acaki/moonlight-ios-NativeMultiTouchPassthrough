@@ -14,6 +14,7 @@
 #include <libavcodec/cbs_av1.h>
 #include <libavformat/avio.h>
 #include <libavutil/mem.h>
+#include <mach/mach_time.h>
 
 // Private libavformat API for writing the AV1 Codec Configuration Box
 extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
@@ -629,9 +630,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
         
     CMSampleBufferRef sampleBuffer;
-    
-    CMSampleTimingInfo sampleTiming = {kCMTimeInvalid, CMTimeMake(du->presentationTimeMs, 1000), kCMTimeInvalid};
-    
+
+    CMSampleTimingInfo sampleTiming = {
+        .duration              = kCMTimeInvalid,
+        .presentationTimeStamp = CMClockMakeHostTimeFromSystemUnits(mach_absolute_time()),
+        .decodeTimeStamp       = kCMTimeInvalid,
+    };
+
     status = CMSampleBufferCreateReady(kCFAllocatorDefault,
                                   frameBlockBuffer,
                                   formatDesc, 1, 1,
