@@ -36,6 +36,11 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     
     CADisplayLink* _displayLink;
     BOOL framePacing;
+
+    // used to estimate stream framerate
+    int framesSeen;
+    float streamFps;
+    CFTimeInterval lastAveragedAt;
 }
 
 - (void)reinitializeDisplayLayer
@@ -88,6 +93,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     framePacing = useFramePacing;
     _lastDecodeTime = 0.0f;
 
+    framesSeen = 0;
+    streamFps = 0.0f;
+    lastAveragedAt = 0.0f;
+
     parameterSetBuffers = [[NSMutableArray alloc] init];
     
     [self reinitializeDisplayLayer];
@@ -105,7 +114,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkCallback:)];
     if (@available(iOS 15.0, tvOS 15.0, *)) {
-        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
+        UIScreen *screen = [UIScreen mainScreen];
+        NSInteger maxFPS = screen.maximumFramesPerSecond;
+        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, maxFPS, self->frameRate);
     }
     else {
         _displayLink.preferredFramesPerSecond = self->frameRate;
@@ -136,9 +147,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     // Running with zero should be possible on a good wired network, but 1 is a better default.
     int pendingAtStart = LiGetPendingVideoFrames();
     if (pendingAtStart < desiredBufferSize) {
-        // don't process any frames yet. This will cause a hitch but
-        // should only occur at the start of streaming.
-        Log(LOG_D, @"[%d/%d] buffering...", pendingAtStart, desiredBufferSize);
+        // Leave enough buffer frame(s). This block will also execute any time the framerate
+        // of the stream drops below the refresh rate, e.g. 9fps desktop or 24fps video. In those
+        // cases we just keep returning until the next frame is delivered. We adjust the refresh
+        // rate below to minimize the wasted CPU cycles this causes.
         return;
     }
 
@@ -172,8 +184,28 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         }
     } while (LiGetPendingVideoFrames() > desiredBufferSize);
 
-#ifdef DEBUG
+    // estimate the framerate of the incoming stream averaged over 1 second and adjust
+    // the refresh rate of the display to the closest rate.
     CFTimeInterval nowEnd = CACurrentMediaTime();
+    framesSeen += framesProcessed;
+    if (nowEnd - lastAveragedAt > 1.0) {
+        double displayRefreshRate = 1.0f / (deadline - start);
+        streamFps = framesSeen / (nowEnd - lastAveragedAt);
+        lastAveragedAt = nowEnd;
+        framesSeen = 0;
+
+        Log(LOG_I, @"displayLink refresh rate %.2f hz, stream framerate: %.2f fps", displayRefreshRate, streamFps);
+        if (@available(iOS 15.0, tvOS 15.0, *)) {
+            UIScreen *screen = [UIScreen mainScreen];
+            NSInteger maxFPS = screen.maximumFramesPerSecond;
+            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(streamFps, maxFPS, streamFps);
+        }
+        else {
+            _displayLink.preferredFramesPerSecond = (int)(streamFps + 0.5);
+        }
+    }
+
+#ifdef DEBUG
     int pendingAtEnd = LiGetPendingVideoFrames();
     double displayRefreshRate = 1.0f / (deadline - start);
     if (nowEnd > deadline) {

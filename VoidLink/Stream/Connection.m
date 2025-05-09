@@ -138,8 +138,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
         }
         
         // Any frame number greater than m_LastFrameNumber + 1 represents a dropped frame
-        currentVideoStats.networkDroppedFrames += decodeUnit->frameNumber - (lastFrameNumber + 1);
-        currentVideoStats.totalFrames += decodeUnit->frameNumber - (lastFrameNumber + 1);
+        int droppedFrames = decodeUnit->frameNumber - (lastFrameNumber + 1);
+        if (droppedFrames > 0) {
+            currentVideoStats.networkDroppedFrames += droppedFrames;
+            currentVideoStats.totalFrames += droppedFrames;
+
+            Log(LOG_W, @"Dropped frame: %d", decodeUnit->frameNumber);
+        }
         lastFrameNumber = decodeUnit->frameNumber;
     }
     
