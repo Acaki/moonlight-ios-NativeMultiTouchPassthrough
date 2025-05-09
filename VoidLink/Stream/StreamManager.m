@@ -182,21 +182,18 @@
     float fps = stats.totalFrames / interval;
     int bufferedFrames = LiGetPendingVideoFrames();
 
-    return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\n"
+    return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (%.2f Hz) (Codec: %@)\n"
             "%@"
             "Frames dropped by your network connection: %.2f%%\n"
-            "Average network latency: %@\n"
-            "Average decoding time: %.2f ms, buffered frames: %d/%.2f ms",
+            "Average network latency: %@",
             _config.width,
             _config.height,
             fps,
+            stats.displayRefreshRate,
             [_connection getActiveCodecName],
             hostProcessingString,
             stats.networkDroppedFrames / interval,
-            latencyString,
-            stats.totalDecodeTime * 1000.0f / stats.totalFrames,
-            bufferedFrames,
-            bufferedFrames * (1000.0f / fps)];
+            latencyString];
 }
 
 @end

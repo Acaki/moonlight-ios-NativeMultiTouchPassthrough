@@ -91,7 +91,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
     framePacing = useFramePacing;
-    _lastDecodeTime = 0.0f;
 
     framesSeen = 0;
     streamFps = 0.0f;
@@ -116,7 +115,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     if (@available(iOS 15.0, tvOS 15.0, *)) {
         UIScreen *screen = [UIScreen mainScreen];
         NSInteger maxFPS = screen.maximumFramesPerSecond;
-        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, maxFPS, self->frameRate);
+        float minFPS = MIN(self->frameRate, maxFPS);
+        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(minFPS, maxFPS, minFPS);
     }
     else {
         _displayLink.preferredFramesPerSecond = self->frameRate;
@@ -134,6 +134,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     CFTimeInterval nowStart = CACurrentMediaTime();
     CFTimeInterval start = link.timestamp;
     CFTimeInterval deadline = link.targetTimestamp;
+
+    _displayRefreshRate = 1.0f / (deadline - start);
 
     // |------------------<-current frame->-------------------|
     // |--------|---------------------------------------------|
@@ -166,20 +168,21 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             return;
         }
         framesProcessed++;
-        CFTimeInterval beforeDecode = CACurrentMediaTime();
+        CFTimeInterval beforeSubmit = CACurrentMediaTime();
 
         LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du));
 
         CFTimeInterval now = CACurrentMediaTime();
-        CFTimeInterval decodeTime = now - beforeDecode;
+        CFTimeInterval submitTime = now - beforeSubmit;
 
-        // The Connection object needs the decode time for stats during the above call to
-        // DrSubmitDecodeUnit(), so it's a bit awkward to pass this value. We'll just let
-        // it get the previous frame's decode time using the lastDecodeTime property.
-        _lastDecodeTime = decodeTime;
+        // Note: This value is not the traditional decodeTime as in other clients, because we
+        // are only preparing data for use by AVSampleBufferDisplayLayer. The actual video decode
+        // occurs in a system thread we are unable to measure. Example: this decodeTime on Apple TV (2nd gen)
+        // is about 2ms for 4K60 video, while the actual decode time per frame takes 6ms but this can only be seen
+        // by looking in the system log.
 
-        // Break out if we don't have enough time to decode another frame
-        if (now >= deadline || (deadline - now) < (decodeTime * 1.1)) {
+        // Break out if we don't have enough time to process another frame
+        if (now >= deadline || (deadline - now) < (submitTime * 1.1)) {
             break;
         }
     } while (LiGetPendingVideoFrames() > desiredBufferSize);
@@ -189,16 +192,16 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     CFTimeInterval nowEnd = CACurrentMediaTime();
     framesSeen += framesProcessed;
     if (nowEnd - lastAveragedAt > 1.0) {
-        double displayRefreshRate = 1.0f / (deadline - start);
         streamFps = framesSeen / (nowEnd - lastAveragedAt);
         lastAveragedAt = nowEnd;
         framesSeen = 0;
 
-        Log(LOG_I, @"displayLink refresh rate %.2f hz, stream framerate: %.2f fps", displayRefreshRate, streamFps);
+        Log(LOG_I, @"displayLink refresh rate %.2f hz, stream framerate: %.2f fps", _displayRefreshRate, streamFps);
         if (@available(iOS 15.0, tvOS 15.0, *)) {
             UIScreen *screen = [UIScreen mainScreen];
             NSInteger maxFPS = screen.maximumFramesPerSecond;
-            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(streamFps, maxFPS, streamFps);
+            float minFPS = MIN(streamFps, maxFPS);
+            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(minFPS, maxFPS, minFPS);
         }
         else {
             _displayLink.preferredFramesPerSecond = (int)(streamFps + 0.5);
@@ -207,16 +210,15 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
 #ifdef DEBUG
     int pendingAtEnd = LiGetPendingVideoFrames();
-    double displayRefreshRate = 1.0f / (deadline - start);
     if (nowEnd > deadline) {
-        Log(LOG_I, @"[%f fps] [%d/%d] displayLink NOT ok, decoded %d frames in %f but took %f too long",
-            displayRefreshRate,
+        Log(LOG_I, @"[%f fps] [%d/%d] displayLink NOT ok, delivered %d frames in %f but took %f too long",
+            _displayRefreshRate,
             pendingAtStart, pendingAtEnd,
             framesProcessed, nowEnd - nowStart, nowEnd - deadline);
     }
     else {
-        Log(LOG_I, @"[%f fps] [%d/%d] displayLink ok, decoded %d frames in %f with %f to spare",
-            displayRefreshRate,
+        Log(LOG_I, @"[%f fps] [%d/%d] displayLink ok, delivered %d frames in %f with %f to spare",
+            _displayRefreshRate,
             pendingAtStart, pendingAtEnd,
             framesProcessed, nowEnd - nowStart, deadline - nowEnd);
     }

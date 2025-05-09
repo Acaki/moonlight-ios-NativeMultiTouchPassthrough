@@ -16,12 +16,12 @@ typedef struct {
     CFTimeInterval endTime;
     int totalFrames;
     int receivedFrames;
-    CFTimeInterval totalDecodeTime;
     int networkDroppedFrames;
     int totalHostProcessingLatency;
     int framesWithHostProcessingLatency;
     int maxHostProcessingLatency;
     int minHostProcessingLatency;
+    CFTimeInterval displayRefreshRate;
 } video_stats_t;
 
 @interface Connection : NSOperation <NSStreamDelegate>

@@ -163,7 +163,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     
     currentVideoStats.receivedFrames++;
     currentVideoStats.totalFrames++;
-    currentVideoStats.totalDecodeTime += [renderer lastDecodeTime];
+    currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
 
     PLENTRY entry = decodeUnit->bufferList;
     while (entry != NULL) {

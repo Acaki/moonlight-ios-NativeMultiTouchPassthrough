@@ -14,7 +14,7 @@
 
 @interface VideoDecoderRenderer : NSObject
 
-@property (atomic, readonly) CFTimeInterval lastDecodeTime;
+@property (atomic, readonly) CFTimeInterval displayRefreshRate;
 
 - (id)initWithView:(UIView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing;
 
