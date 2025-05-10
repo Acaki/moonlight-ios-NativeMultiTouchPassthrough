@@ -51,6 +51,8 @@
     
 #if !TARGET_OS_TV
     UIScreenEdgePanGestureRecognizer *_exitSwipeRecognizer;
+    UISwipeGestureRecognizer *_topSwipeRecognizer;
+    UISwipeGestureRecognizer *_topSwipeUpRecognizer;
 #endif
 }
 
@@ -136,6 +138,18 @@
     _exitSwipeRecognizer.delaysTouchesEnded = NO;
     
     [self.view addGestureRecognizer:_exitSwipeRecognizer];
+
+    _topSwipeRecognizer = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(topSwiped)];
+    _topSwipeRecognizer.direction = UISwipeGestureRecognizerDirectionDown;
+    _topSwipeRecognizer.numberOfTouchesRequired = 2;
+    _topSwipeRecognizer.enabled = TRUE;
+    [self.view addGestureRecognizer:_topSwipeRecognizer];
+
+    _topSwipeUpRecognizer = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(topSwipedUp)];
+    _topSwipeUpRecognizer.direction = UISwipeGestureRecognizerDirectionUp;
+    _topSwipeUpRecognizer.numberOfTouchesRequired = 2;
+    _topSwipeUpRecognizer.enabled = FALSE;
+    // This is added to the _overlayView when displayed
 #endif
     
     _tipLabel = [[UILabel alloc] init];
@@ -144,7 +158,7 @@
 #if TARGET_OS_TV
     [_tipLabel setText:@"Tip: Tap the Play/Pause button on the Apple TV Remote to disconnect from your PC"];
 #else
-    [_tipLabel setText:@"Tip: Swipe from the left edge to disconnect from your PC"];
+    [_tipLabel setText:@"Tip: Swipe from the left edge to disconnect from your PC. Swipe down with 2 fingers for stats."];
 #endif
     
     [_tipLabel sizeToFit];
@@ -266,7 +280,7 @@
     if (_overlayView == nil) {
         _overlayView = [[PaddedLabel alloc] initWithFrame:CGRectZero];
         [_overlayView setTextInsets:UIEdgeInsetsMake(10, 15, 10, 15)];
-        [_overlayView setUserInteractionEnabled:NO];
+        [_overlayView setUserInteractionEnabled:YES];
         [_overlayView setNumberOfLines:100];
         [_overlayView.layer setCornerRadius:12];
         [_overlayView.layer setMasksToBounds:YES];
@@ -282,6 +296,9 @@
         [_overlayView setFont:[UIFont systemFontOfSize:24 weight:UIFontWeightMedium]];
 #else
         [_overlayView setFont:[UIFont systemFontOfSize:12 weight:UIFontWeightMedium]];
+
+        _topSwipeUpRecognizer.enabled = TRUE;
+        [_overlayView addGestureRecognizer:_topSwipeUpRecognizer];
 #endif
         [_overlayView setAlpha:0.6];
         [self.view addSubview:_overlayView];
@@ -311,7 +328,10 @@
     
     [_statsUpdateTimer invalidate];
     _statsUpdateTimer = nil;
-    
+
+    _topSwipeRecognizer.enabled = FALSE;
+    _topSwipeUpRecognizer.enabled = FALSE;
+
     [self.navigationController popToRootViewControllerAnimated:YES];
 }
 
@@ -367,6 +387,38 @@
     [self returnToMainFrame];
 }
 
+- (void)topSwiped {
+    Log(LOG_I, @"User swiped down for stats");
+
+    _topSwipeRecognizer.enabled = FALSE;
+    _topSwipeUpRecognizer.enabled = TRUE;
+
+    if (self->_statsUpdateTimer == nil) {
+        self->_statsUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:1.0f
+                                                                   target:self
+                                                                 selector:@selector(updateStatsOverlay)
+                                                                 userInfo:nil
+                                                                  repeats:YES];
+        [self->_statsUpdateTimer fire];
+    }
+}
+
+- (void)topSwipedUp {
+    Log(LOG_I, @"User swiped up to hide stats");
+
+    _topSwipeRecognizer.enabled = TRUE;
+    _topSwipeUpRecognizer.enabled = FALSE;
+
+    if (self->_statsUpdateTimer != nil) {
+        [_statsUpdateTimer invalidate];
+        _statsUpdateTimer = nil;
+    }
+
+    if (_overlayView != nil) {
+        [_overlayView setHidden:YES];
+    }
+}
+
 - (void) connectionStarted {
     Log(LOG_I, @"Connection started");
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -380,11 +432,7 @@
         [self->_controllerSupport connectionEstablished];
         
         if (self->_settings.statsOverlay) {
-            self->_statsUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:1.0f
-                                                                       target:self
-                                                                     selector:@selector(updateStatsOverlay)
-                                                                     userInfo:nil
-                                                                      repeats:YES];
+            [self topSwiped];
         }
     });
 }
