@@ -421,6 +421,11 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
     renderer = myRenderer;
     _callbacks = callbacks;
 
+    // Check for low power mode which limits framerate to 60
+    if (config.frameRate > 60 && [[NSProcessInfo processInfo] isLowPowerModeEnabled]) {
+        config.frameRate = 60;
+    }
+
     LiInitializeStreamConfiguration(&_streamConfig);
     _streamConfig.width = config.width;
     _streamConfig.height = config.height;
