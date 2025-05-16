@@ -24,32 +24,26 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     StreamView* _view;
     id<ConnectionCallbacks> _callbacks;
     float _streamAspectRatio;
-    
+
     AVSampleBufferDisplayLayer* displayLayer;
     int videoFormat;
     int frameRate;
-    
+
     NSMutableArray *parameterSetBuffers;
     NSData *masteringDisplayColorVolume;
     NSData *contentLightLevelInfo;
     CMVideoFormatDescriptionRef formatDesc;
-    
-    CADisplayLink* _displayLink;
-    BOOL framePacing;
 
-    // used to estimate stream framerate
-    int framesSeen;
-    float streamFps;
-    CFTimeInterval lastAveragedAt;
+    CADisplayLink* _displayLink;
 }
 
 - (void)reinitializeDisplayLayer
 {
     CALayer *oldLayer = displayLayer;
-    
+
     displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
     displayLayer.backgroundColor = [UIColor blackColor].CGColor;
-    
+
     // Ensure the AVSampleBufferDisplayLayer is sized to preserve the aspect ratio
     // of the video stream. We used to use AVLayerVideoGravityResizeAspect, but that
     // respects the PAR encoded in the SPS which causes our computed video-relative
@@ -68,7 +62,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
-    
+
     if (oldLayer != nil) {
         // Switch out the old display layer with the new one
         [_view.layer replaceSublayer:oldLayer with:displayLayer];
@@ -76,30 +70,25 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     else {
         [_view.layer addSublayer:displayLayer];
     }
-    
+
     if (formatDesc != nil) {
         CFRelease(formatDesc);
         formatDesc = nil;
     }
 }
 
-- (id)initWithView:(StreamView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing
+- (id)initWithView:(StreamView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio
 {
     self = [super init];
-    
+
     _view = view;
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
-    framePacing = useFramePacing;
-
-    framesSeen = 0;
-    streamFps = 0.0f;
-    lastAveragedAt = 0.0f;
 
     parameterSetBuffers = [[NSMutableArray alloc] init];
-    
+
     [self reinitializeDisplayLayer];
-    
+
     return self;
 }
 
@@ -111,6 +100,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
 - (void)start
 {
+    [self performSelectorInBackground:@selector(pullFrames) withObject:nil];
+
+    // display link currently only monitors the display refresh rate
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkCallback:)];
     if (@available(iOS 15.0, tvOS 15.0, *)) {
         UIScreen *screen = [UIScreen mainScreen];
@@ -126,50 +118,84 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
 
-- (void)displayLinkCallback:(CADisplayLink *)link
+- (void)pullFrames
 {
-    static BOOL setAnchor = NO;
-    static CFTimeInterval anchorLocal;
-    static uint64_t anchorHostUs;
-
     VIDEO_FRAME_HANDLE handle;
     PDECODE_UNIT du;
+    static BOOL setAnchor = false;
+    static CFTimeInterval anchorLocal = 0.0f;
+    static uint64_t anchorHostUs = 0;
+    static CFTimeInterval lastTargetLocal = 0.0f;
+    static CFTimeInterval lastHostUs = 0.0f;
 
-    // |------------------<-current frame->-------------------|
-    // |--------|---------------------------------------------|
-    // start   nowStart                                    deadline
+    while (LiWaitForNextVideoFrame(&handle, &du)) {
+        CFTimeInterval now = CACurrentMediaTime();
+        if (!setAnchor) {
+            // we want to link our anchor point with the server before the initial LiWait call
+            // which is closer to when the server started streaming.
+            Log(LOG_I, @"anchor frame - hostSeconds %f / localSeconds %f ",
+                du->presentationTimeUs / 1000000.0, now);
+            anchorLocal = now;
+            anchorHostUs = du->presentationTimeUs;
+            setAnchor = YES;
+        }
 
-    CFTimeInterval nowStart = CACurrentMediaTime();
-    CFTimeInterval start = link.timestamp;
-    CFTimeInterval deadline = link.targetTimestamp;
+        CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
+        CFTimeInterval targetLocal = anchorLocal + hostDelta;
 
-    _displayRefreshRate = 1.0f / (deadline - start);
+        Log(LOG_I, @"[%f] got frame %d, hostDelta %f ms, targetLocal in %f ms, frametime %f",
+            now, du->frameNumber,
+            hostDelta * 1000.0,
+            (targetLocal - now) * 1000.0,
+            (targetLocal - lastTargetLocal) * 1000.0);
 
-    if (!LiWaitForNextVideoFrame(&handle, &du)) {
-        // we're shutting down or something else has gone wrong
-        Log(LOG_E, @"LiWaitForNextVideoFrame returned false, shutting down displayLink");
-        [self stop];
-        return;
+        lastTargetLocal = targetLocal;
+        lastHostUs = du->presentationTimeUs;
+
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            // WARNING: du is zeroed by the call to DrSubmitDecodeUnit()
+            LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
+        });
+
+        /* XXX example of system log output from this.
+
+         <<<< VMC >>>> vmc2GMFigLogDumpStats: VMC(0xcf31dc000):Snapshots:
+         CodecType: av01 (HW decoder), DecodedPixelBuffer: &xv0, 2560 x 1440
+         Last Decoded Frames [
+         {PTS: 123349.818 s, decode: 3.426 ms},
+         {PTS: 123349.830 s, decode: 3.507 ms},
+         {PTS: 123349.842 s, decode: 3.442 ms},
+         {PTS: 123349.855 s, decode: 3.736 ms},
+         ]
+
+         <<<< IQ-CA >>>> piqca_gmstats_dump: FIQCA(0xcf3044000) most recently enqueued:
+         Enqueued Pixel Buffer:&xv0, 2560 x 1440 [
+         {PTS: 123349.830 s, enqueued at: host 123350.419 s (media 123350.419 s)},
+         {PTS: 123349.842 s, enqueued at: host 123350.431 s (media 123350.431 s)},
+         {PTS: 123349.855 s, enqueued at: host 123350.445 s (media 123350.445 s)},
+         {PTS: 123349.866 s, enqueued at: host 123350.456 s (media 123350.456 s)},
+         ]
+
+         <<<< IQ-CA >>>> piqca_gmstats_dump: FIQCA(0xcf3044000) most recently displayed:
+         DisplaySize: 2752.000000 x 1548.000000 [
+         {PTS: 123349.778 s, sampled at: 123350.377 s, displayed at: 123350.377 s, on glass for: 16.667 ms},
+         {PTS: 123349.789 s, sampled at: 123350.394 s, displayed at: 123350.394 s, on glass for: 8.333 ms},
+         {PTS: 123349.818 s, sampled at: 123350.419 s, displayed at: 123350.419 s, on glass for: 8.333 ms},
+         {PTS: 123349.804 s, sampled at: 123350.402 s, displayed at: 123350.402 s, on glass for: 16.667 ms},
+         ]
+         */
+
     }
+}
 
-    if (!setAnchor) {
-        anchorLocal = CACurrentMediaTime();
-        anchorHostUs = du->presentationTimeUs;
-        setAnchor = YES;
-    }
-
-    CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
-    CFTimeInterval targetLocal = anchorLocal + hostDelta;
-
-    Log(LOG_I, @"frame %d, hostDelta %f ms, targetLocal %f ms (%f ms) (pending %d)",
-        du->frameNumber, hostDelta * 1000.0, targetLocal * 1000.0,
-        (link.targetTimestamp - targetLocal) * 1000.0, LiGetPendingVideoFrames());
-
-    LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
+- (void)displayLinkCallback:(CADisplayLink *)link
+{
+    _displayRefreshRate = 1.0f / (link.targetTimestamp - link.timestamp);
 }
 
 - (void)stop
 {
+    LiWakeWaitForVideoFrame();
     [_displayLink invalidate];
 }
 
@@ -610,12 +636,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         }
     }
 
-    // Set pts to the current frame's targetTimestamp deadline from displayLink
-    CMTime newPts = CMTimeMakeWithSeconds(targetTimestamp, NSEC_PER_SEC);
-
+    // Set pts to the current frame's targetTimestamp pts
     CMSampleTimingInfo sampleTiming = {
         .duration              = kCMTimeInvalid,
-        .presentationTimeStamp = newPts,
+        .presentationTimeStamp = CMTimeMakeWithSeconds(targetTimestamp, NSEC_PER_SEC),
         .decodeTimeStamp       = kCMTimeInvalid,
     };
 
@@ -638,7 +662,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     if (du->frameType == FRAME_TYPE_IDR) {
         // Ensure the layer is visible now
         self->displayLayer.hidden = NO;
-        
+
         // Tell our parent VC to hide the progress indicator
         [self->_callbacks videoContentShown];
     }
