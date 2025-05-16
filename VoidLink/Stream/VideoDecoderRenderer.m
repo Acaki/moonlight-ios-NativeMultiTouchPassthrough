@@ -124,12 +124,20 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 }
 
-int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
+int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
 
 - (void)displayLinkCallback:(CADisplayLink *)link
 {
+    static BOOL setAnchor = NO;
+    static CFTimeInterval anchorLocal;
+    static uint64_t anchorHostUs;
+
     VIDEO_FRAME_HANDLE handle;
     PDECODE_UNIT du;
+
+    // |------------------<-current frame->-------------------|
+    // |--------|---------------------------------------------|
+    // start   nowStart                                    deadline
 
     CFTimeInterval nowStart = CACurrentMediaTime();
     CFTimeInterval start = link.timestamp;
@@ -137,92 +145,27 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
     _displayRefreshRate = 1.0f / (deadline - start);
 
-    // |------------------<-current frame->-------------------|
-    // |--------|---------------------------------------------|
-    // start   nowStart                                    deadline
-
-    // The number of frames we'd like to leave pending as a buffer
-    // TODO: make this a pref slider. Experiment with a value of 0.
-    int desiredBufferSize = 1;
-
-    // Pre-buffer enough frames based on the user's desired buffer size.
-    // Running with zero should be possible on a good wired network, but 1 is a better default.
-    int pendingAtStart = LiGetPendingVideoFrames();
-    if (pendingAtStart < desiredBufferSize) {
-        // Leave enough buffer frame(s). This block will also execute any time the framerate
-        // of the stream drops below the refresh rate, e.g. 9fps desktop or 24fps video. In those
-        // cases we just keep returning until the next frame is delivered. We adjust the refresh
-        // rate below to minimize the wasted CPU cycles this causes.
+    if (!LiWaitForNextVideoFrame(&handle, &du)) {
+        // we're shutting down or something else has gone wrong
+        Log(LOG_E, @"LiWaitForNextVideoFrame returned false, shutting down displayLink");
+        [self stop];
         return;
     }
 
-    // The goal is to process as many frames as we can without exceeding our deadline (targetTimestamp).
-    // We also want to maintain a buffer of N frames configured by the user. A do/while loop is used so that
-    // we always process at least 1 frame. A while loop could cause a situation where the frames
-    // get offset and each callback ends up handling 0 / 2 / 0 / 2 frames. We are not actually doing any frame
-    // pacing here, as that will be automatically handled by the OS in AVSampleBufferDisplayLayer.
-    int framesProcessed = 0;
-    do {
-        if (!LiWaitForNextVideoFrame(&handle, &du)) {
-            // we're shutting down or something else has gone wrong
-            return;
-        }
-        framesProcessed++;
-        CFTimeInterval beforeSubmit = CACurrentMediaTime();
-
-        LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du));
-
-        CFTimeInterval now = CACurrentMediaTime();
-        CFTimeInterval submitTime = now - beforeSubmit;
-
-        // Note: This value is not the traditional decodeTime as in other clients, because we
-        // are only preparing data for use by AVSampleBufferDisplayLayer. The actual video decode
-        // occurs in a system thread we are unable to measure. Example: this decodeTime on Apple TV (2nd gen)
-        // is about 2ms for 4K60 video, while the actual decode time per frame takes 6ms but this can only be seen
-        // by looking in the system log.
-
-        // Break out if we don't have enough time to process another frame
-        if (now >= deadline || (deadline - now) < (submitTime * 1.1)) {
-            break;
-        }
-    } while (LiGetPendingVideoFrames() > desiredBufferSize);
-
-    // estimate the framerate of the incoming stream averaged over 1 second and adjust
-    // the refresh rate of the display to the closest rate.
-    CFTimeInterval nowEnd = CACurrentMediaTime();
-    framesSeen += framesProcessed;
-    if (nowEnd - lastAveragedAt > 1.0) {
-        streamFps = framesSeen / (nowEnd - lastAveragedAt);
-        lastAveragedAt = nowEnd;
-        framesSeen = 0;
-
-        Log(LOG_I, @"displayLink refresh rate %.2f hz, stream framerate: %.2f fps", _displayRefreshRate, streamFps);
-        if (@available(iOS 15.0, tvOS 15.0, *)) {
-            UIScreen *screen = [UIScreen mainScreen];
-            NSInteger maxFPS = screen.maximumFramesPerSecond;
-            float minFPS = MIN(streamFps, maxFPS);
-            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(minFPS, maxFPS, minFPS);
-        }
-        else {
-            _displayLink.preferredFramesPerSecond = (int)(streamFps + 0.5);
-        }
+    if (!setAnchor) {
+        anchorLocal = CACurrentMediaTime();
+        anchorHostUs = du->presentationTimeUs;
+        setAnchor = YES;
     }
 
-#ifdef DEBUG
-    int pendingAtEnd = LiGetPendingVideoFrames();
-    if (nowEnd > deadline) {
-        Log(LOG_I, @"[%f fps] [%d/%d] displayLink NOT ok, delivered %d frames in %f but took %f too long",
-            _displayRefreshRate,
-            pendingAtStart, pendingAtEnd,
-            framesProcessed, nowEnd - nowStart, nowEnd - deadline);
-    }
-    else {
-        Log(LOG_I, @"[%f fps] [%d/%d] displayLink ok, delivered %d frames in %f with %f to spare",
-            _displayRefreshRate,
-            pendingAtStart, pendingAtEnd,
-            framesProcessed, nowEnd - nowStart, deadline - nowEnd);
-    }
-#endif
+    CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
+    CFTimeInterval targetLocal = anchorLocal + hostDelta;
+
+    Log(LOG_I, @"frame %d, hostDelta %f ms, targetLocal %f ms (%f ms) (pending %d)",
+        du->frameNumber, hostDelta * 1000.0, targetLocal * 1000.0,
+        (link.targetTimestamp - targetLocal) * 1000.0, LiGetPendingVideoFrames());
+
+    LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
 }
 
 - (void)stop
@@ -487,7 +430,11 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 }
 
 // This function must free data for bufferType == BUFFER_TYPE_PICDATA
-- (int)submitDecodeBuffer:(unsigned char *)data length:(int)length bufferType:(int)bufferType decodeUnit:(PDECODE_UNIT)du
+- (int)submitDecodeBuffer:(unsigned char *)data
+                   length:(int)length
+               bufferType:(int)bufferType
+               decodeUnit:(PDECODE_UNIT)du
+          targetTimestamp:(CFTimeInterval)targetTimestamp
 {
     OSStatus status;
     
@@ -662,15 +609,17 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             return DR_NEED_IDR;
         }
     }
-        
-    CMSampleBufferRef sampleBuffer;
+
+    // Set pts to the current frame's targetTimestamp deadline from displayLink
+    CMTime newPts = CMTimeMakeWithSeconds(targetTimestamp, NSEC_PER_SEC);
 
     CMSampleTimingInfo sampleTiming = {
         .duration              = kCMTimeInvalid,
-        .presentationTimeStamp = CMClockMakeHostTimeFromSystemUnits(mach_absolute_time()),
+        .presentationTimeStamp = newPts,
         .decodeTimeStamp       = kCMTimeInvalid,
     };
 
+    CMSampleBufferRef sampleBuffer;
     status = CMSampleBufferCreateReady(kCFAllocatorDefault,
                                   frameBlockBuffer,
                                   formatDesc, 1, 1,

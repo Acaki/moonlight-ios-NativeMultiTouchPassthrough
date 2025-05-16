@@ -23,6 +23,10 @@
 - (void)stop;
 - (void)setHdrMode:(BOOL)enabled;
 
-- (int)submitDecodeBuffer:(unsigned char *)data length:(int)length bufferType:(int)bufferType decodeUnit:(PDECODE_UNIT)du;
+- (int)submitDecodeBuffer:(unsigned char *)data
+                   length:(int)length
+               bufferType:(int)bufferType
+               decodeUnit:(PDECODE_UNIT)du
+          targetTimestamp:(CFTimeInterval)targetTimestamp;
 
 @end
