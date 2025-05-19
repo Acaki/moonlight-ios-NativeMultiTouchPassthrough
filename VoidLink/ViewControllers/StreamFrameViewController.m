@@ -329,8 +329,10 @@
     [_statsUpdateTimer invalidate];
     _statsUpdateTimer = nil;
 
+#if !TARGET_OS_TV
     _topSwipeRecognizer.enabled = FALSE;
     _topSwipeUpRecognizer.enabled = FALSE;
+#endif
 
     [self.navigationController popToRootViewControllerAnimated:YES];
 }
@@ -390,8 +392,10 @@
 - (void)topSwiped {
     Log(LOG_I, @"User swiped down for stats");
 
+#if !TARGET_OS_TV
     _topSwipeRecognizer.enabled = FALSE;
     _topSwipeUpRecognizer.enabled = TRUE;
+#endif
 
     if (self->_statsUpdateTimer == nil) {
         self->_statsUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:1.0f
@@ -406,8 +410,10 @@
 - (void)topSwipedUp {
     Log(LOG_I, @"User swiped up to hide stats");
 
+#if !TARGET_OS_TV
     _topSwipeRecognizer.enabled = TRUE;
     _topSwipeUpRecognizer.enabled = FALSE;
+#endif
 
     if (self->_statsUpdateTimer != nil) {
         [_statsUpdateTimer invalidate];
