@@ -16,6 +16,9 @@
 #include <libavutil/mem.h>
 #include <mach/mach_time.h>
 
+// #define DISPLAYLINK_VERBOSE
+// Define for extra logging related to frame pacing
+
 // Private libavformat API for writing the AV1 Codec Configuration Box
 extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                               int write_seq_header);
@@ -133,8 +136,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         if (!setAnchor) {
             // we want to link our anchor point with the server before the initial LiWait call
             // which is closer to when the server started streaming.
+#ifdef DISPLAYLINK_VERBOSE
             Log(LOG_I, @"anchor frame - hostSeconds %f / localSeconds %f ",
                 du->presentationTimeUs / 1000000.0, now);
+#endif
             anchorLocal = now;
             anchorHostUs = du->presentationTimeUs;
             setAnchor = YES;
@@ -143,11 +148,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
         CFTimeInterval targetLocal = anchorLocal + hostDelta;
 
+#ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"[%f] got frame %d, hostDelta %f ms, targetLocal in %f ms, frametime %f",
             now, du->frameNumber,
             hostDelta * 1000.0,
             (targetLocal - now) * 1000.0,
             (targetLocal - lastTargetLocal) * 1000.0);
+#endif
 
         lastTargetLocal = targetLocal;
         lastHostUs = du->presentationTimeUs;
@@ -219,8 +226,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     if (!setAnchor) {
         // we want to link our anchor point with the server before the initial LiWait call
         // which is closer to when the server started streaming.
+#ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"anchor frame - hostSeconds %f / localSeconds %f ",
             du->presentationTimeUs / 1000000.0, start);
+#endif
         anchorLocal = start;
         anchorHostUs = du->presentationTimeUs;
         setAnchor = YES;
@@ -229,19 +238,24 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
     CFTimeInterval targetLocal = anchorLocal + hostDelta;
 
-    if (1) { // XXX
+    if (du->frameNumber > 100) { // XXX
         // try to line up with the vsync deadline
         CFTimeInterval nudge = deadline - targetLocal;
+#ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"nudging targetLocal +%f to line up with vsync deadline %f", nudge, deadline);
+#endif
         targetLocal += nudge;
     }
 
-    Log(LOG_I, @"[%f] got frame %d, hostDelta %f ms, targetLocal in %f ms, vsync deadline in %f ms, frametime %f",
+#ifdef DISPLAYLINK_VERBOSE
+    Log(LOG_I, @"[%f] got frame %d, hostDelta %f ms, targetLocal in %f ms, vsync deadline in %f ms, frametime %f, pending %d",
         start, du->frameNumber,
         hostDelta * 1000.0,
         (targetLocal - start) * 1000.0,
         deadline,
-        (targetLocal - lastTargetLocal) * 1000.0);
+        (targetLocal - lastTargetLocal) * 1000.0,
+        LiGetPendingVideoFrames());
+#endif
 
     lastTargetLocal = targetLocal;
     lastHostUs = du->presentationTimeUs;
@@ -726,7 +740,9 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         return DR_NEED_IDR;
     }
 
+#ifdef DISPLAYLINK_VERBOSE
     Log(LOG_I, @"[%f] frame %d got presentation time %f", CACurrentMediaTime(), du->frameNumber, targetTimestamp);
+#endif
 
     // Enqueue the next frame
     [self->displayLayer enqueueSampleBuffer:sampleBuffer];

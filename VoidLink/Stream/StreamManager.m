@@ -184,7 +184,7 @@
 
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (%.2f Hz) (Codec: %@)\n"
             "%@"
-            "Frames dropped by your network connection: %.2f%%\n"
+            "Frames dropped: %.2f%%, waiting in queue: %d\n"
             "Average network latency: %@",
             _config.width,
             _config.height,
@@ -193,6 +193,7 @@
             [_connection getActiveCodecName],
             hostProcessingString,
             stats.networkDroppedFrames / interval,
+            LiGetPendingVideoFrames(),
             latencyString];
 }
 
