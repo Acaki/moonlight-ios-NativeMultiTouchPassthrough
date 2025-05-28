@@ -13,6 +13,7 @@
 #import "ControllerSupport.h"
 #import "DataManager.h"
 #import "PaddedLabel.h"
+#import "ImGuiRenderer.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -48,7 +49,7 @@
     UIScrollView *_scrollView;
     BOOL _userIsInteracting;
     CGSize _keyboardSize;
-    
+
 #if !TARGET_OS_TV
     UIScreenEdgePanGestureRecognizer *_exitSwipeRecognizer;
     UISwipeGestureRecognizer *_topSwipeRecognizer;
@@ -224,6 +225,11 @@
     [self.view addSubview:_stageLabel];
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
+
+    // Make a MetalKit view for ImGui
+    self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds];
+    [self.view addSubview:self.imguiView.mtkView];
+    [self.view bringSubviewToFront:self.imguiView.mtkView];
 }
 
 - (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView {

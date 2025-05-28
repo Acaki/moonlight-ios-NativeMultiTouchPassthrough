@@ -16,7 +16,7 @@
 #include <libavutil/mem.h>
 #include <mach/mach_time.h>
 
-// #define DISPLAYLINK_VERBOSE
+#define DISPLAYLINK_VERBOSE
 // Define for extra logging related to frame pacing
 
 // Private libavformat API for writing the AV1 Codec Configuration Box
@@ -215,7 +215,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
 
     _displayRefreshRate = 1.0f / (deadline - start);
 
-
     if (!LiWaitForNextVideoFrame(&handle, &du)) {
         // we're shutting down or something else has gone wrong
         Log(LOG_E, @"LiWaitForNextVideoFrame returned false, shutting down displayLink");
@@ -261,6 +260,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     lastHostUs = du->presentationTimeUs;
 
     LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
+
+    // ImGui hooks in here
+
+
 }
 
 - (void)stop
@@ -739,10 +742,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         CFRelease(frameBlockBuffer);
         return DR_NEED_IDR;
     }
-
-#ifdef DISPLAYLINK_VERBOSE
-    Log(LOG_I, @"[%f] frame %d got presentation time %f", CACurrentMediaTime(), du->frameNumber, targetTimestamp);
-#endif
 
     // Enqueue the next frame
     [self->displayLayer enqueueSampleBuffer:sampleBuffer];

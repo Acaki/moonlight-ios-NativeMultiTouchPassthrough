@@ -7,6 +7,7 @@
 //
 
 #import "Connection.h"
+#import "ImGuiRenderer.h"
 #import "StreamConfiguration.h"
 #import "StreamView.h"
 
@@ -20,6 +21,7 @@
 @interface StreamFrameViewController : UIViewController <ConnectionCallbacks, ControllerSupportDelegate, UserInteractionDelegate, UIScrollViewDelegate>
 #endif
 @property (nonatomic) StreamConfiguration* streamConfig;
+@property (nonatomic, strong) ImGuiRenderer *imguiView;
 
 -(void)updatePreferredDisplayMode:(BOOL)streamActive;
 

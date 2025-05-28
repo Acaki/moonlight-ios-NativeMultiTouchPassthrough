@@ -180,7 +180,6 @@
     
     float interval = stats.endTime - stats.startTime;
     float fps = stats.totalFrames / interval;
-    int bufferedFrames = LiGetPendingVideoFrames();
 
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (%.2f Hz) (Codec: %@)\n"
             "%@"
