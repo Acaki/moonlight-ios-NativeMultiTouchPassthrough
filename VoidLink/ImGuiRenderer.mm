@@ -3,6 +3,9 @@
 
 #import "imgui.h"
 #import "imgui_impl_metal.h"
+//#import "implot.h"
+
+// ImGui code needs to live in this file because it's an Objective-C++ class, and can call C++ code.
 
 @implementation ImGuiRenderer
 
@@ -16,11 +19,15 @@
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    //ImPlot::CreateContext();
     (void)ImGui::GetIO();
 
     ImGui::StyleColorsDark();
 
     ImGui_ImplMetal_Init(_device);
+
+    // Graph init
+    _frametimes = [[FloatBuffer alloc] initWithCapacity:512];
 
     return self;
 }
@@ -69,12 +76,16 @@
     ImGui::NewFrame();
 
     // Our state (make them static = more or less global) as a convenience to keep the example terse.
-    static bool show_demo_window = true;
+    static bool show_demo_window = false;
     static ImVec4 clear_color = ImVec4(0, 0, 0, 0);
 
     // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    if (show_demo_window)
+    if (show_demo_window) {
         ImGui::ShowDemoWindow(&show_demo_window);
+    }
+
+    // Draw stats graphs
+    [self drawStatsGraphs];
 
     // Rendering
     ImGui::Render();
@@ -103,6 +114,7 @@
     [super viewDidDisappear:animated];
 
     ImGui_ImplMetal_Shutdown();
+    //ImPlot::DestroyContext();
     ImGui::DestroyContext();
 }
 
@@ -139,5 +151,44 @@
 -(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
 -(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event  { [self updateIOWithTouchEvent:event]; }
 -(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
+
+/// Stats Graphs
+
+- (void) submitFrametime:(CFTimeInterval)frametime {
+    [self.frametimes push:(float)frametime];
+}
+
+- (void) drawStatsGraphs {
+    const int graphs = 1;
+
+    ImGuiIO &io = ImGui::GetIO();
+    ImVec2 windowSize(io.DisplaySize.x * 0.25f, 100.0f);
+    ImVec2 windowPos(io.DisplaySize.x - 10.0f, 10.0f);    // 10px margin
+    ImGui::SetNextWindowBgAlpha(0.4f);
+    ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(1.0f, 0.0f));  // pivot (1,0) = top-right
+    ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+                             ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoNavFocus |
+                             ImGuiWindowFlags_NoBackground;
+    ImGui::Begin("Performance Metrics", nullptr, flags);
+
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    float spacing = ImGui::GetStyle().ItemSpacing.y;
+    float plotH = (avail.y - (graphs - 1) * spacing) / graphs;
+
+    // we malloc a buffer for frametimes once and reuse it
+    static float *frametimeBuffer = (float *)malloc(sizeof(float) * 512);
+    float minF, maxF;
+    int countF = [self.frametimes copyValuesIntoBuffer:frametimeBuffer size:512 min:&minF max:&maxF];
+    float avgF = [self.frametimes averageValue];
+
+    // Ugly, but can't get ImPlot to build for iOS
+    char frametime_text[64];
+    sprintf(frametime_text, "min/max/avg %.1f/%.1f/%.1f ms", minF, maxF, avgF);
+    ImGui::PlotLines("##Frametimes", frametimeBuffer, countF, 0, frametime_text, 0.0f, 50.0f, ImVec2(0, 80.0f));
+
+    ImGui::End();
+}
 
 @end

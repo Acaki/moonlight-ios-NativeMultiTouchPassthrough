@@ -685,6 +685,10 @@
     [self.view setBackgroundColor:[UIColor blackColor]];
 }
 
+- (void) submitFrametime:(CFTimeInterval)frametime {
+    [self.imguiView submitFrametime:frametime];
+}
+
 - (void)didReceiveMemoryWarning
 {
     [super didReceiveMemoryWarning];

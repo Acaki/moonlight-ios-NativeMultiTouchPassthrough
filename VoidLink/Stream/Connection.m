@@ -45,6 +45,8 @@ static int audioFrameSize;
 
 static VideoDecoderRenderer* renderer;
 
+static BandwidthTracker *bwTracker;
+
 int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags)
 {
     [renderer setupWithVideoFormat:videoFormat width:width height:height frameRate:redrawRate];
@@ -52,6 +54,7 @@ int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void*
     activeVideoFormat = videoFormat;
     memset(&currentVideoStats, 0, sizeof(currentVideoStats));
     memset(&lastVideoStats, 0, sizeof(lastVideoStats));
+    bwTracker = [[BandwidthTracker alloc] initWithWindowSeconds:10 bucketIntervalMs:250];
     return 0;
 }
 
@@ -63,6 +66,11 @@ void DrStart(void)
 void DrStop(void)
 {
     [renderer stop];
+}
+
+-(BandwidthTracker *) getBwTracker
+{
+    return bwTracker;
 }
 
 -(BOOL) getVideoStats:(video_stats_t*)stats
@@ -163,6 +171,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp)
     
     currentVideoStats.receivedFrames++;
     currentVideoStats.totalFrames++;
+    [bwTracker addBytes:decodeUnit->fullLength];
     currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
 
     PLENTRY entry = decodeUnit->bufferList;

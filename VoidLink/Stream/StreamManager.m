@@ -181,7 +181,11 @@
     float interval = stats.endTime - stats.startTime;
     float fps = stats.totalFrames / interval;
 
+    double avgVideoMbps = [_connection getBwTracker].averageMbps;
+    double peakVideoMbps = [_connection getBwTracker].peakMbps;
+
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (%.2f Hz) (Codec: %@)\n"
+            "Bitrate: %.1f Mbps, Peak (%lus): %.1f\n"
             "%@"
             "Frames dropped: %.2f%%, waiting in queue: %d\n"
             "Average network latency: %@",
@@ -190,6 +194,7 @@
             fps,
             stats.displayRefreshRate,
             [_connection getActiveCodecName],
+            avgVideoMbps, [_connection getBwTracker].windowSeconds, peakVideoMbps,
             hostProcessingString,
             stats.networkDroppedFrames / interval,
             LiGetPendingVideoFrames(),

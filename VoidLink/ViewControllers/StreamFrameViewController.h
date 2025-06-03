@@ -7,6 +7,7 @@
 //
 
 #import "Connection.h"
+#import "FloatBuffer.h"
 #import "ImGuiRenderer.h"
 #import "StreamConfiguration.h"
 #import "StreamView.h"

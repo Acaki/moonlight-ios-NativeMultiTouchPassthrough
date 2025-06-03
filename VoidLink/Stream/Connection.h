@@ -8,6 +8,7 @@
 
 #import "VideoDecoderRenderer.h"
 #import "StreamConfiguration.h"
+#import "BandwidthTracker.h"
 
 #define CONN_TEST_SERVER "ios.conntest.moonlight-stream.org"
 
@@ -29,6 +30,7 @@ typedef struct {
 -(id) initWithConfig:(StreamConfiguration*)config renderer:(VideoDecoderRenderer*)myRenderer connectionCallbacks:(id<ConnectionCallbacks>)callbacks;
 -(void) terminate;
 -(void) main;
+-(BandwidthTracker *) getBwTracker;
 -(BOOL) getVideoStats:(video_stats_t*)stats;
 -(NSString*) getActiveCodecName;
 

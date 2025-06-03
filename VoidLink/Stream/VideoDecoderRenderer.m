@@ -163,35 +163,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
             // WARNING: du is zeroed by the call to DrSubmitDecodeUnit()
             LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
         });
-
-        /* XXX example of system log output from this.
-
-         <<<< VMC >>>> vmc2GMFigLogDumpStats: VMC(0xcf31dc000):Snapshots:
-         CodecType: av01 (HW decoder), DecodedPixelBuffer: &xv0, 2560 x 1440
-         Last Decoded Frames [
-         {PTS: 123349.818 s, decode: 3.426 ms},
-         {PTS: 123349.830 s, decode: 3.507 ms},
-         {PTS: 123349.842 s, decode: 3.442 ms},
-         {PTS: 123349.855 s, decode: 3.736 ms},
-         ]
-
-         <<<< IQ-CA >>>> piqca_gmstats_dump: FIQCA(0xcf3044000) most recently enqueued:
-         Enqueued Pixel Buffer:&xv0, 2560 x 1440 [
-         {PTS: 123349.830 s, enqueued at: host 123350.419 s (media 123350.419 s)},
-         {PTS: 123349.842 s, enqueued at: host 123350.431 s (media 123350.431 s)},
-         {PTS: 123349.855 s, enqueued at: host 123350.445 s (media 123350.445 s)},
-         {PTS: 123349.866 s, enqueued at: host 123350.456 s (media 123350.456 s)},
-         ]
-
-         <<<< IQ-CA >>>> piqca_gmstats_dump: FIQCA(0xcf3044000) most recently displayed:
-         DisplaySize: 2752.000000 x 1548.000000 [
-         {PTS: 123349.778 s, sampled at: 123350.377 s, displayed at: 123350.377 s, on glass for: 16.667 ms},
-         {PTS: 123349.789 s, sampled at: 123350.394 s, displayed at: 123350.394 s, on glass for: 8.333 ms},
-         {PTS: 123349.818 s, sampled at: 123350.419 s, displayed at: 123350.419 s, on glass for: 8.333 ms},
-         {PTS: 123349.804 s, sampled at: 123350.402 s, displayed at: 123350.402 s, on glass for: 16.667 ms},
-         ]
-         */
-
     }
 }
 
@@ -200,6 +171,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     VIDEO_FRAME_HANDLE handle;
     PDECODE_UNIT du;
     static BOOL setAnchor = false;
+    static uint64_t hostPtsOffset = 0;
     static CFTimeInterval anchorLocal = 0.0f;
     static uint64_t anchorHostUs = 0;
     static CFTimeInterval lastTargetLocal = 0.0f;
@@ -223,13 +195,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     }
 
     if (!setAnchor) {
-        // we want to link our anchor point with the server before the initial LiWait call
-        // which is closer to when the server started streaming.
+        // stream startup takes maybe 0.5 seconds, and we need to chop this off of the host pts
+        hostPtsOffset = du->presentationTimeUs;
 #ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"anchor frame - hostSeconds %f / localSeconds %f ",
             du->presentationTimeUs / 1000000.0, start);
 #endif
-        anchorLocal = start;
+        anchorLocal = deadline;
         anchorHostUs = du->presentationTimeUs;
         setAnchor = YES;
     }
@@ -237,22 +209,26 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
     CFTimeInterval targetLocal = anchorLocal + hostDelta;
 
-    if (du->frameNumber > 100) { // XXX
-        // try to line up with the vsync deadline
-        CFTimeInterval nudge = deadline - targetLocal;
-#ifdef DISPLAYLINK_VERBOSE
-        Log(LOG_I, @"nudging targetLocal +%f to line up with vsync deadline %f", nudge, deadline);
-#endif
-        targetLocal += nudge;
-    }
+//    if (du->frameNumber > 100) { // XXX
+//        // try to line up with the vsync deadline
+//        CFTimeInterval nudge = deadline - targetLocal;
+//#ifdef DISPLAYLINK_VERBOSE
+//        Log(LOG_I, @"nudging targetLocal +%f to line up with vsync deadline %f", nudge, deadline);
+//#endif
+//        targetLocal += nudge;
+//    }
 
+    CFTimeInterval frametime = (targetLocal - lastTargetLocal) * 1000.0;
+    if (lastTargetLocal != 0) {
+        [self->_callbacks submitFrametime:frametime];
+    }
 #ifdef DISPLAYLINK_VERBOSE
     Log(LOG_I, @"[%f] got frame %d, hostDelta %f ms, targetLocal in %f ms, vsync deadline in %f ms, frametime %f, pending %d",
         start, du->frameNumber,
         hostDelta * 1000.0,
         (targetLocal - start) * 1000.0,
         deadline,
-        (targetLocal - lastTargetLocal) * 1000.0,
+        frametime,
         LiGetPendingVideoFrames());
 #endif
 

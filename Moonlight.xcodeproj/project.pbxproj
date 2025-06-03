@@ -43,10 +43,14 @@
 		98CFB82F1CAD481B0048EF74 /* libmoonlight-common.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 98AB2E841CAD46840089BB98 /* libmoonlight-common.a */; };
 		98D5856D1C0EA79600F6CC00 /* TemporaryHost.m in Sources */ = {isa = PBXBuildFile; fileRef = 98D5856C1C0EA79600F6CC00 /* TemporaryHost.m */; };
 		98D585701C0ED0E800F6CC00 /* TemporarySettings.m in Sources */ = {isa = PBXBuildFile; fileRef = 98D5856F1C0ED0E800F6CC00 /* TemporarySettings.m */; };
+		A10BC62C2DE8E65800905783 /* BandwidthTracker.m in Sources */ = {isa = PBXBuildFile; fileRef = A10BC62B2DE8E65800905783 /* BandwidthTracker.m */; };
+		A10BC62D2DE8E65800905783 /* BandwidthTracker.m in Sources */ = {isa = PBXBuildFile; fileRef = A10BC62B2DE8E65800905783 /* BandwidthTracker.m */; };
 		A12025BF2DD7E370005015C8 /* ImGuiRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = A12025BE2DD7E36B005015C8 /* ImGuiRenderer.mm */; };
 		A12025C02DD7E370005015C8 /* ImGuiRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = A12025BE2DD7E36B005015C8 /* ImGuiRenderer.mm */; };
 		A19562AC2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
 		A19562AD2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
+		A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
+		A1967D9B2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
 		A1A777DC2DDBEC5500E071D8 /* imgui_widgets.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777DB2DDBEC5500E071D8 /* imgui_widgets.cpp */; };
 		A1A777DD2DDBEC5500E071D8 /* imgui_demo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D52DDBEC5500E071D8 /* imgui_demo.cpp */; };
 		A1A777DF2DDBEC5500E071D8 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D42DDBEC5500E071D8 /* imgui.cpp */; };
@@ -230,9 +234,13 @@
 		98D5856C1C0EA79600F6CC00 /* TemporaryHost.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = TemporaryHost.m; path = Database/TemporaryHost.m; sourceTree = "<group>"; };
 		98D5856E1C0ED0E800F6CC00 /* TemporarySettings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TemporarySettings.h; path = Database/TemporarySettings.h; sourceTree = "<group>"; };
 		98D5856F1C0ED0E800F6CC00 /* TemporarySettings.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = TemporarySettings.m; path = Database/TemporarySettings.m; sourceTree = "<group>"; };
+		A10BC62A2DE8E42C00905783 /* FloatBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FloatBuffer.h; sourceTree = "<group>"; };
+		A10BC62B2DE8E65800905783 /* BandwidthTracker.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BandwidthTracker.m; sourceTree = "<group>"; };
+		A10BC62E2DE8E65F00905783 /* BandwidthTracker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BandwidthTracker.h; sourceTree = "<group>"; };
 		A12025BD2DD7E352005015C8 /* ImGuiRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ImGuiRenderer.h; sourceTree = "<group>"; };
 		A12025BE2DD7E36B005015C8 /* ImGuiRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ImGuiRenderer.mm; sourceTree = "<group>"; };
 		A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = imgui_impl_metal.mm; sourceTree = "<group>"; };
+		A1967D992DEE419B00EFC5CF /* FloatBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FloatBuffer.m; sourceTree = "<group>"; };
 		A1A777D22DDBEC5500E071D8 /* imconfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imconfig.h; path = ../third_party/imgui/imconfig.h; sourceTree = "<group>"; };
 		A1A777D32DDBEC5500E071D8 /* imgui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imgui.h; path = ../third_party/imgui/imgui.h; sourceTree = "<group>"; };
 		A1A777D42DDBEC5500E071D8 /* imgui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui.cpp; path = ../third_party/imgui/imgui.cpp; sourceTree = "<group>"; };
@@ -416,6 +424,13 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		A104BED42DE87752008F548F /* ImPlot */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = ImPlot;
+			sourceTree = "<group>";
+		};
 		A1A777E82DDBECE600E071D8 /* ImGui */ = {
 			isa = PBXGroup;
 			children = (
@@ -448,6 +463,7 @@
 		FB290CE519B2C406004C83CF = {
 			isa = PBXGroup;
 			children = (
+				A104BED42DE87752008F548F /* ImPlot */,
 				A1A777E82DDBECE600E071D8 /* ImGui */,
 				9896219423D15C2900211983 /* X1Kit */,
 				98AB2E7F1CAD46830089BB98 /* moonlight-common.xcodeproj */,
@@ -604,8 +620,8 @@
 				FB89461719F646E200339C8A /* Connection.m */,
 				FB89461819F646E200339C8A /* StreamConfiguration.h */,
 				FB89461919F646E200339C8A /* StreamConfiguration.m */,
-				FB89461A19F646E200339C8A /* StreamManager.h */,
 				FB89461B19F646E200339C8A /* StreamManager.m */,
+				FB89461A19F646E200339C8A /* StreamManager.h */,
 				FB89461C19F646E200339C8A /* VideoDecoderRenderer.h */,
 				FB89461D19F646E200339C8A /* VideoDecoderRenderer.m */,
 				9803CCAB254F9EAF00EE185E /* ConnectionCallbacks.h */,
@@ -616,6 +632,10 @@
 		FB89461E19F646E200339C8A /* Utility */ = {
 			isa = PBXGroup;
 			children = (
+				A10BC62E2DE8E65F00905783 /* BandwidthTracker.h */,
+				A10BC62B2DE8E65800905783 /* BandwidthTracker.m */,
+				A10BC62A2DE8E42C00905783 /* FloatBuffer.h */,
+				A1967D992DEE419B00EFC5CF /* FloatBuffer.m */,
 				FB89462119F646E200339C8A /* Utils.h */,
 				FB89462219F646E200339C8A /* Utils.m */,
 				FBD1C8E01A8AD69E00C6703C /* Logger.h */,
@@ -923,6 +943,7 @@
 				4A37FDA52DCAD28F00441192 /* PaddedLabel.m in Sources */,
 				FB1A67C3213245EA00507771 /* AppAssetManager.m in Sources */,
 				A19562AC2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */,
+				A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */,
 				FB1A67C5213245EA00507771 /* AppAssetRetriever.m in Sources */,
 				FB1A67C7213245EA00507771 /* PairManager.m in Sources */,
 				FB1A67C9213245EA00507771 /* WakeOnLanManager.m in Sources */,
@@ -941,6 +962,7 @@
 				FB1A67AF213245C500507771 /* IdManager.m in Sources */,
 				988FCD42293B091B003050E2 /* KeyboardInputField.m in Sources */,
 				FB1A67A3213245BD00507771 /* Connection.m in Sources */,
+				A10BC62C2DE8E65800905783 /* BandwidthTracker.m in Sources */,
 				FB1A67A5213245BD00507771 /* StreamConfiguration.m in Sources */,
 				FB1A67A7213245BD00507771 /* StreamManager.m in Sources */,
 				FB1A67A9213245BD00507771 /* VideoDecoderRenderer.m in Sources */,
@@ -1001,6 +1023,7 @@
 				FB290D0019B2C406004C83CF /* main.m in Sources */,
 				9896219723D15C7000211983 /* X1Kit.swift in Sources */,
 				FBD3494319FC9C04002D2A60 /* AppAssetManager.m in Sources */,
+				A1967D9B2DEE419F00EFC5CF /* FloatBuffer.m in Sources */,
 				FB6549561A57907E001C8F39 /* DiscoveryWorker.m in Sources */,
 				FB89462A19F646E200339C8A /* ControllerSupport.m in Sources */,
 				FB9AFD3D1A7E111600872C98 /* AppAssetResponse.m in Sources */,
@@ -1008,6 +1031,7 @@
 				FB4A23B81A9D3637004D2EF2 /* LoadingFrameViewController.m in Sources */,
 				FB9AFD3A1A7E05CE00872C98 /* ServerInfoResponse.m in Sources */,
 				FB89463119F646E200339C8A /* StreamManager.m in Sources */,
+				A10BC62D2DE8E65800905783 /* BandwidthTracker.m in Sources */,
 				988FCD41293B091B003050E2 /* KeyboardInputField.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1069,6 +1093,8 @@
 					"$(PROJECT_DIR)/moonlight-common/moonlight-common-c/src",
 					"$(SDKROOT)/usr/include/libxml2/**",
 					"$(PROJECT_DIR)/libs/**",
+					"$(PROJECT_DIR)/third_party/imgui",
+					"$(PROJECT_DIR)/third_party/implot",
 				);
 				INFOPLIST_FILE = "Moonlight TV/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
@@ -1125,6 +1151,8 @@
 					"$(PROJECT_DIR)/moonlight-common/moonlight-common-c/src",
 					"$(SDKROOT)/usr/include/libxml2/**",
 					"$(PROJECT_DIR)/libs/**",
+					"$(PROJECT_DIR)/third_party/imgui",
+					"$(PROJECT_DIR)/third_party/implot",
 				);
 				INFOPLIST_FILE = "Moonlight TV/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
@@ -1207,6 +1235,11 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-D_POSIX_C_SOURCE=200809L",
+					"-D_DARWIN_C_SOURCE",
+				);
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_INTERFACE_HEADER_NAME = "";
 				SWIFT_VERSION = 4.0;
@@ -1259,6 +1292,11 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-D_POSIX_C_SOURCE=200809L",
+					"-D_DARWIN_C_SOURCE",
+				);
 				PROVISIONING_PROFILE = "";
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_INTERFACE_HEADER_NAME = "";
@@ -1283,10 +1321,10 @@
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
 					"$(PROJECT_DIR)/moonlight-common/moonlight-common-c/src",
-					"$(SDKROOT)/usr/include/libxml2/**",
+					"$(SDKROOT)/usr/include/libxml2",
 					"$(PROJECT_DIR)/libs/**",
-					"$(PROJECT_DIR)third_party/imgui/**",
-					"$(PROJECT_DIR)third_partu@$G&",
+					"$(PROJECT_DIR)/third_party/imgui",
+					"$(PROJECT_DIR)/third_party/implot",
 				);
 				INFOPLIST_FILE = "Limelight/Limelight-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
@@ -1336,10 +1374,10 @@
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
 					"$(PROJECT_DIR)/moonlight-common/moonlight-common-c/src",
-					"$(SDKROOT)/usr/include/libxml2/**",
+					"$(SDKROOT)/usr/include/libxml2",
 					"$(PROJECT_DIR)/libs/**",
-					"$(PROJECT_DIR)third_party/imgui/**",
-					"$(PROJECT_DIR)third_partu@$G&",
+					"$(PROJECT_DIR)/third_party/imgui",
+					"$(PROJECT_DIR)/third_party/implot",
 				);
 				INFOPLIST_FILE = "Limelight/Limelight-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
