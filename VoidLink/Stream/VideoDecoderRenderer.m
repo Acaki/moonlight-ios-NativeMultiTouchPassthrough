@@ -7,7 +7,9 @@
 //
 
 #import "VideoDecoderRenderer.h"
+#import "FrameBuffer.h"
 #import "StreamView.h"
+#import "Plot.h"
 
 #include <libavcodec/avcodec.h>
 #include <libavcodec/cbs.h>
@@ -38,6 +40,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     CMVideoFormatDescriptionRef formatDesc;
 
     CADisplayLink* _displayLink;
+    FrameBuffer *frameBuffer;
 }
 
 - (void)reinitializeDisplayLayer
@@ -89,6 +92,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     _streamAspectRatio = aspectRatio;
 
     parameterSetBuffers = [[NSMutableArray alloc] init];
+    frameBuffer = [[FrameBuffer alloc] init];
 
     [self reinitializeDisplayLayer];
 
@@ -105,7 +109,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     // [self performSelectorInBackground:@selector(pullFrames) withObject:nil];
 
-    // display link currently only monitors the display refresh rate
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkCallback:)];
     if (@available(iOS 15.0, tvOS 15.0, *)) {
         UIScreen *screen = [UIScreen mainScreen];
@@ -121,70 +124,36 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
 
-- (void)pullFrames
-{
+// TODO: this thread will queue frames from the network
+- (void)pullFrames {
     VIDEO_FRAME_HANDLE handle;
     PDECODE_UNIT du;
-    static BOOL setAnchor = false;
-    static CFTimeInterval anchorLocal = 0.0f;
-    static uint64_t anchorHostUs = 0;
-    static CFTimeInterval lastTargetLocal = 0.0f;
-    static CFTimeInterval lastHostUs = 0.0f;
 
     while (LiWaitForNextVideoFrame(&handle, &du)) {
-        CFTimeInterval now = CACurrentMediaTime();
-        if (!setAnchor) {
-            // we want to link our anchor point with the server before the initial LiWait call
-            // which is closer to when the server started streaming.
-#ifdef DISPLAYLINK_VERBOSE
-            Log(LOG_I, @"anchor frame - hostSeconds %f / localSeconds %f ",
-                du->presentationTimeUs / 1000000.0, now);
-#endif
-            anchorLocal = now;
-            anchorHostUs = du->presentationTimeUs;
-            setAnchor = YES;
-        }
+        Frame *frame = [[Frame alloc] initWithHandle:handle];
+        [frameBuffer pushFrame:frame];
 
-        CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
-        CFTimeInterval targetLocal = anchorLocal + hostDelta;
-
-#ifdef DISPLAYLINK_VERBOSE
-        Log(LOG_I, @"[%f] got frame %d, hostDelta %f ms, targetLocal in %f ms, frametime %f",
-            now, du->frameNumber,
-            hostDelta * 1000.0,
-            (targetLocal - now) * 1000.0,
-            (targetLocal - lastTargetLocal) * 1000.0);
-#endif
-
-        lastTargetLocal = targetLocal;
-        lastHostUs = du->presentationTimeUs;
-
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            // WARNING: du is zeroed by the call to DrSubmitDecodeUnit()
-            LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
-        });
+        Log(LOG_I, @"frameBuffer pushFrame:%d, count %d", du->frameNumber, [frameBuffer count]);
     }
 }
 
-- (void)displayLinkCallback:(CADisplayLink *)link
-{
+- (void)displayLinkCallback:(CADisplayLink *)link {
     VIDEO_FRAME_HANDLE handle;
     PDECODE_UNIT du;
-    static BOOL setAnchor = false;
-    static uint64_t hostPtsOffset = 0;
+
+    // All times are in seconds
+    static BOOL setAnchor = NO;
     static CFTimeInterval anchorLocal = 0.0f;
-    static uint64_t anchorHostUs = 0;
+    static CFTimeInterval anchorHost = 0.0f;
     static CFTimeInterval lastTargetLocal = 0.0f;
-    static CFTimeInterval lastHostUs = 0.0f;
+    static CFTimeInterval lastHostPts = 0.0f;
 
     // |------------------<-current frame->-------------------|
     // |--------|---------------------------------------------|
     // start   nowStart                                    deadline
 
-    CFTimeInterval nowStart = CACurrentMediaTime();
     CFTimeInterval start = link.timestamp;
     CFTimeInterval deadline = link.targetTimestamp;
-
     _displayRefreshRate = 1.0f / (deadline - start);
 
     if (!LiWaitForNextVideoFrame(&handle, &du)) {
@@ -194,52 +163,57 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         return;
     }
 
-    if (!setAnchor) {
-        // stream startup takes maybe 0.5 seconds, and we need to chop this off of the host pts
-        hostPtsOffset = du->presentationTimeUs;
-#ifdef DISPLAYLINK_VERBOSE
-        Log(LOG_I, @"anchor frame - hostSeconds %f / localSeconds %f ",
-            du->presentationTimeUs / 1000000.0, start);
-#endif
-        anchorLocal = deadline;
-        anchorHostUs = du->presentationTimeUs;
-        setAnchor = YES;
+    // special case frame 1, this is a slow setup frame
+    // It can also indicate the server has restarted, so we need to reset our anchor frame status
+    if (du->frameNumber == 1) {
+        LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, CACurrentMediaTime()));
+        setAnchor = NO;
+        return;
     }
 
-    CFTimeInterval hostDelta = (du->presentationTimeUs - anchorHostUs) / 1000000.0;
-    CFTimeInterval targetLocal = anchorLocal + hostDelta;
+    CFTimeInterval now = CACurrentMediaTime();
 
-//    if (du->frameNumber > 100) { // XXX
-//        // try to line up with the vsync deadline
-//        CFTimeInterval nudge = deadline - targetLocal;
-//#ifdef DISPLAYLINK_VERBOSE
-//        Log(LOG_I, @"nudging targetLocal +%f to line up with vsync deadline %f", nudge, deadline);
-//#endif
-//        targetLocal += nudge;
-//    }
+    if (!setAnchor) {
+        anchorHost = (CFTimeInterval)du->presentationTimeUs / 1000000.0;
+        anchorLocal = now;
+        setAnchor = YES;
+        Log(LOG_I, @"Setting anchor point: anchorHost=%f == anchorLocal=%f", anchorHost, anchorLocal);
+    }
 
+    // work out how much time has passed on both sides, and check our drift
+    CFTimeInterval localElapsed = now - anchorLocal;
+    CFTimeInterval hostElapsed = (du->presentationTimeUs / 1000000.0) - anchorHost;
+    CFTimeInterval drift = hostElapsed - localElapsed;
+
+    // determine when to present this frame
+    CFTimeInterval targetLocal = anchorLocal + hostElapsed + drift;
     CFTimeInterval frametime = (targetLocal - lastTargetLocal) * 1000.0;
     if (lastTargetLocal != 0) {
-        [self->_callbacks submitFrametime:frametime];
+        [self->_callbacks observeFloat:PLOT_FRAMETIME value:frametime];
     }
+
+    // Correct for drift in small increments after it reaches half a frame
+    CFTimeInterval driftThreshold = (deadline - start) / 2;
+    const CFTimeInterval maxDriftCorrection = 0.001f;
+    if (fabs(drift) > driftThreshold) {
+        CFTimeInterval correction = drift < 0 ? maxDriftCorrection : -maxDriftCorrection;
+        anchorLocal += correction;
+        Log(LOG_I, @"Correcting anchorLocal's drift of %fms by %fms",
+            drift * 1000.0, correction * 1000.0);
+    }
+    [self->_callbacks observeFloat:PLOT_DRIFT value:drift * 1000.0];
+
 #ifdef DISPLAYLINK_VERBOSE
-    Log(LOG_I, @"[%f] got frame %d, hostDelta %f ms, targetLocal in %f ms, vsync deadline in %f ms, frametime %f, pending %d",
-        start, du->frameNumber,
-        hostDelta * 1000.0,
-        (targetLocal - start) * 1000.0,
-        deadline,
-        frametime,
+    Log(LOG_I, @"[%f] frame %d, anchorLocal %f, localElapsed %fs, hostElapsed %fs, drift %fs, targetLocal %f (in %fms), frametime %f, pending %d",
+        start, du->frameNumber, anchorLocal, localElapsed, hostElapsed, drift,
+        targetLocal, (targetLocal - now) * 1000.0, frametime,
         LiGetPendingVideoFrames());
 #endif
 
     lastTargetLocal = targetLocal;
-    lastHostUs = du->presentationTimeUs;
+    lastHostPts = hostElapsed;
 
     LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
-
-    // ImGui hooks in here
-
-
 }
 
 - (void)stop

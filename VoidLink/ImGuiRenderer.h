@@ -4,6 +4,7 @@
 #import <UIKit/UIKit.h>
 
 #import "FloatBuffer.h"
+#import "Plot.h"
 
 @interface ImGuiRenderer : UIViewController
 @end
@@ -13,8 +14,11 @@
 @property (nonatomic, readonly) MTKView * _Nonnull mtkView;
 @property (nonatomic, strong) id <MTLDevice> _Nonnull device;
 @property (nonatomic, strong) id <MTLCommandQueue> _Nonnull commandQueue;
+@property (nonatomic) struct PlotDef * _Nonnull plots;
 @property (nonatomic) FloatBuffer * _Nonnull frametimes;
+@property (nonatomic) int desiredQueueSize;
 
--(nonnull instancetype)initWithFrame:(CGRect)bounds;
--(void)submitFrametime:(CFTimeInterval)frametime;
+-(nonnull instancetype) initWithFrame:(CGRect)bounds;
+-(void) observeFloat:(int)plotId value:(CFTimeInterval)value;
+-(int) getDesiredQueueSize;
 @end

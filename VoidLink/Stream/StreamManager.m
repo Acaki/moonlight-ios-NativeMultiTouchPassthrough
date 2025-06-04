@@ -9,6 +9,7 @@
 #import "StreamManager.h"
 #import "CryptoManager.h"
 #import "HttpManager.h"
+#import "Plot.h"
 #import "Utils.h"
 
 #import "StreamView.h"

@@ -685,8 +685,12 @@
     [self.view setBackgroundColor:[UIColor blackColor]];
 }
 
-- (void) submitFrametime:(CFTimeInterval)frametime {
-    [self.imguiView submitFrametime:frametime];
+- (void) observeFloat:(int)plotId value:(CFTimeInterval)value {
+    [self.imguiView observeFloat:plotId value:value];
+}
+
+- (int) getDesiredQueueSize {
+    return [self.imguiView getDesiredQueueSize];
 }
 
 - (void)didReceiveMemoryWarning

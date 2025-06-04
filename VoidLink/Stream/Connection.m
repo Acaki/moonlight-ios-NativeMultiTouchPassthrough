@@ -7,6 +7,7 @@
 //
 
 #import "Connection.h"
+#import "Plot.h"
 #import "Utils.h"
 
 #import <VideoToolbox/VideoToolbox.h>

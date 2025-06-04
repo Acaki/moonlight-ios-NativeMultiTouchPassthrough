@@ -22,6 +22,7 @@
 - (void) setControllerLed:(uint16_t)controllerNumber r:(uint8_t)r g:(uint8_t)g b:(uint8_t)b;
 - (void) videoContentShown;
 
-- (void) submitFrametime:(CFTimeInterval)frametime;
+- (void) observeFloat:(int)plotId value:(CFTimeInterval)value;
+- (int) getDesiredQueueSize;
 
 @end

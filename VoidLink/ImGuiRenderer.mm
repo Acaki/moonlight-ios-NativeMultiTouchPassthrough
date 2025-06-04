@@ -26,8 +26,24 @@
 
     ImGui_ImplMetal_Init(_device);
 
-    // Graph init
-    _frametimes = [[FloatBuffer alloc] initWithCapacity:512];
+    // Graphs init
+    const int graphs = PlotCount;
+    _plots = (PlotDef *)malloc(sizeof(PlotDef) * graphs);
+
+    _plots[PLOT_FRAMETIME] = {
+        .title  = "Frametime",
+        .unit   = "ms",
+        .scaleTarget = 1000.0 / self.mtkView.preferredFramesPerSecond,
+        .buffer = [[FloatBuffer alloc] initWithCapacity:512] // 4.3s @ 120hz
+    };
+
+    _plots[PLOT_DRIFT] = {
+        .title  = "Drift",
+        .unit   = "ms",
+        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+    };
+
+    _desiredQueueSize = 1;
 
     return self;
 }
@@ -48,8 +64,7 @@
 
     self.mtkView.device = self.device;
     self.mtkView.delegate = self;
-    self.mtkView.preferredFramesPerSecond = 60;
-    self.mtkView.framebufferOnly = NO;
+    self.mtkView.preferredFramesPerSecond = 60; // ImGui overlay will always render at this rate
     self.mtkView.opaque = NO;
     self.mtkView.enableSetNeedsDisplay = NO;
 }
@@ -84,7 +99,7 @@
         ImGui::ShowDemoWindow(&show_demo_window);
     }
 
-    // Draw stats graphs
+    // Custom Moonlight stuff goes here
     [self drawStatsGraphs];
 
     // Rendering
@@ -101,7 +116,7 @@
     [renderEncoder endEncoding];
 
     // Present
-    [commandBuffer presentDrawable:view.currentDrawable];
+    [commandBuffer presentDrawable:view.currentDrawable afterMinimumDuration:1.0 / view.preferredFramesPerSecond];
     [commandBuffer commit];
 }
 
@@ -154,39 +169,66 @@
 
 /// Stats Graphs
 
-- (void) submitFrametime:(CFTimeInterval)frametime {
-    [self.frametimes push:(float)frametime];
+- (void) observeFloat:(int)plotId value:(CFTimeInterval)value {
+    [self.plots[plotId].buffer addValue:(float)value];
+}
+
+- (int) getDesiredQueueSize {
+    return self.desiredQueueSize;
 }
 
 - (void) drawStatsGraphs {
-    const int graphs = 1;
+    const int graphs = PlotCount;
+
+    // we malloc a buffer for frametimes once and reuse it
+    static float * buffers[3] = {
+        (float *)malloc(sizeof(float) * 512),
+        (float *)malloc(sizeof(float) * 512),
+        (float *)malloc(sizeof(float) * 512)
+    };
 
     ImGuiIO &io = ImGui::GetIO();
-    ImVec2 windowSize(io.DisplaySize.x * 0.25f, 100.0f);
+    ImVec2 windowSize(450.0f, 100.0f); // 450x100 works for iPad, other devices will need tweaks
     ImVec2 windowPos(io.DisplaySize.x - 10.0f, 10.0f);    // 10px margin
-    ImGui::SetNextWindowBgAlpha(0.4f);
     ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(1.0f, 0.0f));  // pivot (1,0) = top-right
     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
                              ImGuiWindowFlags_NoMove |
                              ImGuiWindowFlags_NoNavFocus |
                              ImGuiWindowFlags_NoBackground;
-    ImGui::Begin("Performance Metrics", nullptr, flags);
+    ImGui::Begin("##Stats", nullptr, flags);
 
-    ImVec2 avail = ImGui::GetContentRegionAvail();
+    // Figure out how tall each sub‐plot should be, with spacing
+    int modules = graphs + 1;
     float spacing = ImGui::GetStyle().ItemSpacing.y;
-    float plotH = (avail.y - (graphs - 1) * spacing) / graphs;
+    ImVec2 avail  = ImGui::GetContentRegionAvail();
+    float plotH   = (avail.y - (modules - 1) * spacing) / modules;
+    float fullW   = avail.x;
 
-    // we malloc a buffer for frametimes once and reuse it
-    static float *frametimeBuffer = (float *)malloc(sizeof(float) * 512);
-    float minF, maxF;
-    int countF = [self.frametimes copyValuesIntoBuffer:frametimeBuffer size:512 min:&minF max:&maxF];
-    float avgF = [self.frametimes averageValue];
+    for (int i = 0; i < graphs; ++i) {
+        float minY, maxY;
+        int countF = [self.plots[i].buffer copyValuesIntoBuffer:buffers[i] min:&minY max:&maxY];
+        float avgF = [self.plots[i].buffer averageValue];
 
-    // Ugly, but can't get ImPlot to build for iOS
-    char frametime_text[64];
-    sprintf(frametime_text, "min/max/avg %.1f/%.1f/%.1f ms", minF, maxF, avgF);
-    ImGui::PlotLines("##Frametimes", frametimeBuffer, countF, 0, frametime_text, 0.0f, 50.0f, ImVec2(0, 80.0f));
+        // Ugly, but can't get ImPlot to build for iOS
+        char label[64];
+        sprintf(label, "%s  %.1f/%.1f/%.1f %s", self.plots[i].title, minY, maxY, avgF, self.plots[i].unit);
+        float scaleMin = FLT_MAX;
+        float scaleMax = FLT_MAX;
+        if (self.plots[i].scaleTarget) {
+            // optionally center the graph on a target such as the ideal frametime
+            float ideal = (float)self.plots[i].scaleTarget;
+            scaleMin = ideal - (2 * ideal);
+            scaleMax = ideal + (2 * ideal);
+        }
+        ImGui::PlotLines("##xx", buffers[i], countF, 0, (countF > 0 ? label : "no data"), scaleMin, scaleMax, ImVec2(fullW, plotH));
+    }
+
+    static int dqs = self.desiredQueueSize;
+    ImGui::SliderInt("Frame queue size", &dqs, 0, 10);
+    if (dqs != self.desiredQueueSize) {
+        self.desiredQueueSize = dqs;
+    }
 
     ImGui::End();
 }
