@@ -147,6 +147,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     static CFTimeInterval anchorHost = 0.0f;
     static CFTimeInterval lastTargetLocal = 0.0f;
     static CFTimeInterval lastHostPts = 0.0f;
+    static CFTimeInterval lastStart = 0.0f;
 
     // |------------------<-current frame->-------------------|
     // |--------|---------------------------------------------|
@@ -202,6 +203,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
             drift * 1000.0, correction * 1000.0);
     }
     [self->_callbacks observeFloat:PLOT_DRIFT value:drift * 1000.0];
+
+    // Graph the displayLink callback interval, it should be perfectly flat
+    if (lastStart != 0.0) {
+        [self->_callbacks observeFloat:PLOT_DISPLAYLINK value:(start - lastStart) * 1000.0];
+    }
+    lastStart = start;
 
 #ifdef DISPLAYLINK_VERBOSE
     Log(LOG_I, @"[%f] frame %d, anchorLocal %f, localElapsed %fs, hostElapsed %fs, drift %fs, targetLocal %f (in %fms), frametime %f, pending %d",

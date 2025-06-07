@@ -17,6 +17,7 @@
 @property (nonatomic) struct PlotDef * _Nonnull plots;
 @property (nonatomic) FloatBuffer * _Nonnull frametimes;
 @property (nonatomic) int desiredQueueSize;
+@property (nonatomic) float graphAreaHeight;
 
 -(nonnull instancetype) initWithFrame:(CGRect)bounds;
 -(void) observeFloat:(int)plotId value:(CFTimeInterval)value;

@@ -3,6 +3,7 @@
 typedef enum {
     PLOT_FRAMETIME = 0,
     PLOT_DRIFT,
+    PLOT_DISPLAYLINK,
     PlotCount
 } PlotType;
 

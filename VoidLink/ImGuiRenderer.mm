@@ -27,6 +27,7 @@
     ImGui_ImplMetal_Init(_device);
 
     // Graphs init
+    _graphAreaHeight = 200.0f;
     const int graphs = PlotCount;
     _plots = (PlotDef *)malloc(sizeof(PlotDef) * graphs);
 
@@ -40,6 +41,13 @@
     _plots[PLOT_DRIFT] = {
         .title  = "Drift",
         .unit   = "ms",
+        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+    };
+
+    _plots[PLOT_DISPLAYLINK] = {
+        .title  = "DisplayLink interval",
+        .unit   = "ms",
+        .scaleTarget = 1000.0 / self.mtkView.preferredFramesPerSecond,
         .buffer = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
@@ -188,7 +196,7 @@
     };
 
     ImGuiIO &io = ImGui::GetIO();
-    ImVec2 windowSize(450.0f, 100.0f); // 450x100 works for iPad, other devices will need tweaks
+    ImVec2 windowSize(450.0f, _graphAreaHeight); // 450x100 works for iPad, other devices will need tweaks
     ImVec2 windowPos(io.DisplaySize.x - 10.0f, 10.0f);    // 10px margin
     ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(1.0f, 0.0f));  // pivot (1,0) = top-right
     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
