@@ -157,12 +157,17 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     CFTimeInterval deadline = link.targetTimestamp;
     _displayRefreshRate = 1.0f / (deadline - start);
 
+    CFTimeInterval beforeWait = CACurrentMediaTime();
     if (!LiWaitForNextVideoFrame(&handle, &du)) {
         // we're shutting down or something else has gone wrong
         Log(LOG_E, @"LiWaitForNextVideoFrame returned false, shutting down displayLink");
         [self stop];
         return;
     }
+
+    CFTimeInterval now = CACurrentMediaTime();
+
+    [self->_callbacks observeFloat:PLOT_LI_WAIT_TIME value:(now - beforeWait) * 1000000.0];
 
     // special case frame 1, this is a slow setup frame
     // It can also indicate the server has restarted, so we need to reset our anchor frame status
@@ -171,8 +176,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         setAnchor = NO;
         return;
     }
-
-    CFTimeInterval now = CACurrentMediaTime();
 
     if (!setAnchor) {
         anchorHost = (CFTimeInterval)du->presentationTimeUs / 1000000.0;

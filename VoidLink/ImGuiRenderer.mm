@@ -51,6 +51,12 @@
         .buffer = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
+    _plots[PLOT_LI_WAIT_TIME] = {
+        .title  = "LiWait time",
+        .unit   = "us",
+        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+    };
+
     _desiredQueueSize = 1;
 
     return self;
@@ -189,7 +195,8 @@
     const int graphs = PlotCount;
 
     // we malloc a buffer for frametimes once and reuse it
-    static float * buffers[3] = {
+    static float * buffers[4] = {
+        (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512)
