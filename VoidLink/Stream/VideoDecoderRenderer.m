@@ -6,8 +6,10 @@
 //  Copyright (c) 2014 Moonlight Stream. All rights reserved.
 //
 
+@import VideoToolbox;
+
 #import "VideoDecoderRenderer.h"
-#import "FrameBuffer.h"
+#import "FrameQueue.h"
 #import "StreamView.h"
 #import "Plot.h"
 
@@ -38,9 +40,11 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     NSData *masteringDisplayColorVolume;
     NSData *contentLightLevelInfo;
     CMVideoFormatDescriptionRef formatDesc;
+    CMVideoFormatDescriptionRef formatDescImageBuffer;
+    VTDecompressionSessionRef decompressionSession;
 
     CADisplayLink* _displayLink;
-    FrameBuffer *frameBuffer;
+    FrameQueue *frameQueue;
 }
 
 - (void)reinitializeDisplayLayer
@@ -81,6 +85,17 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         CFRelease(formatDesc);
         formatDesc = nil;
     }
+
+    if (formatDescImageBuffer != nil) {
+        CFRelease(formatDescImageBuffer);
+        formatDescImageBuffer = nil;
+    }
+
+    if (decompressionSession != nil){
+        VTDecompressionSessionInvalidate(decompressionSession);
+        CFRelease(decompressionSession);
+        decompressionSession = nil;
+    }
 }
 
 - (id)initWithView:(StreamView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio
@@ -92,7 +107,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     _streamAspectRatio = aspectRatio;
 
     parameterSetBuffers = [[NSMutableArray alloc] init];
-    frameBuffer = [[FrameBuffer alloc] init];
+    frameQueue = [[FrameQueue alloc] init];
 
     [self reinitializeDisplayLayer];
 
@@ -103,11 +118,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     self->videoFormat = videoFormat;
     self->frameRate = frameRate;
-}
-
-- (void)start
-{
-    // [self performSelectorInBackground:@selector(pullFrames) withObject:nil];
 
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkCallback:)];
     if (@available(iOS 15.0, tvOS 15.0, *)) {
@@ -122,32 +132,29 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 }
 
-int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
+- (void) setupDecompressionSession {
+    if (decompressionSession != NULL) {
+        VTDecompressionSessionInvalidate(decompressionSession);
+        CFRelease(decompressionSession);
+        decompressionSession = nil;
+    }
 
-// TODO: this thread will queue frames from the network
-- (void)pullFrames {
-    VIDEO_FRAME_HANDLE handle;
-    PDECODE_UNIT du;
-
-    while (LiWaitForNextVideoFrame(&handle, &du)) {
-        Frame *frame = [[Frame alloc] initWithHandle:handle];
-        [frameBuffer pushFrame:frame];
-
-        Log(LOG_I, @"frameBuffer pushFrame:%d, count %d", du->frameNumber, [frameBuffer count]);
+    int status = VTDecompressionSessionCreate(kCFAllocatorDefault, formatDesc, nil, nil, nil, &decompressionSession);
+    if (status != noErr) {
+        Log(LOG_E, @"Failed to create VTDecompressionSession, status %d", status);
     }
 }
 
-- (void)displayLinkCallback:(CADisplayLink *)link {
-    VIDEO_FRAME_HANDLE handle;
-    PDECODE_UNIT du;
+int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
+- (void)displayLinkCallback:(CADisplayLink *)link {
     // All times are in seconds
     static BOOL setAnchor = NO;
     static CFTimeInterval anchorLocal = 0.0f;
     static CFTimeInterval anchorHost = 0.0f;
     static CFTimeInterval lastTargetLocal = 0.0f;
-    static CFTimeInterval lastHostPts = 0.0f;
     static CFTimeInterval lastStart = 0.0f;
+    static int lastFrameNumber = 0;
 
     // |------------------<-current frame->-------------------|
     // |--------|---------------------------------------------|
@@ -157,36 +164,58 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     CFTimeInterval deadline = link.targetTimestamp;
     _displayRefreshRate = 1.0f / (deadline - start);
 
-    CFTimeInterval beforeWait = CACurrentMediaTime();
-    if (!LiWaitForNextVideoFrame(&handle, &du)) {
-        // we're shutting down or something else has gone wrong
-        Log(LOG_E, @"LiWaitForNextVideoFrame returned false, shutting down displayLink");
-        [self stop];
-        return;
-    }
+    // Inform the frameQueue of our desired queue size, which can be changed on the fly via ImGui
+    int desiredQueueSize = [self->_callbacks getDesiredQueueSize];
+    [frameQueue setDesiredQueueSize:desiredQueueSize];
 
     CFTimeInterval now = CACurrentMediaTime();
 
-    [self->_callbacks observeFloat:PLOT_LI_WAIT_TIME value:(now - beforeWait) * 1000000.0];
-
-    // special case frame 1, this is a slow setup frame
-    // It can also indicate the server has restarted, so we need to reset our anchor frame status
-    if (du->frameNumber == 1) {
-        LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, CACurrentMediaTime()));
-        setAnchor = NO;
-        return;
-    }
-
+    Frame *frame = nil;
     if (!setAnchor) {
-        anchorHost = (CFTimeInterval)du->presentationTimeUs / 1000000.0;
+        frame = [frameQueue popFrame];
+        if (!frame) {
+            return;
+        }
+
+        // special case frame 1, this is a slow setup frame
+        // It can also indicate the server has restarted, so we need to reset our anchor frame status
+        if (frame.frameNumber == 1) {
+            [self renderFrame:frame targetTimestamp:CACurrentMediaTime()];
+            setAnchor = NO;
+            return;
+        }
+
+        anchorHost = frame.pts;
         anchorLocal = now;
         setAnchor = YES;
         Log(LOG_I, @"Setting anchor point: anchorHost=%f == anchorLocal=%f", anchorHost, anchorLocal);
     }
+    else {
+        // we might not have very accurate sync with the correct pts values, so if we notice that the queue
+        // has too many frames in it, it means we are too far behind, and should request to skip to the newest
+        // frame, based on desiredQueueSize
+        if (frameQueue.count > desiredQueueSize) {
+            frame = [frameQueue popFrameForQueueSize:desiredQueueSize];
+            if (!frame) {
+                return;
+            }
+        }
+        else {
+            // get frame nearest to this vsync deadline
+            CFTimeInterval targetPTS = anchorHost + (deadline - anchorLocal);
+            frame = [frameQueue popFrameForPTS:targetPTS];
+            if (!frame) {
+                // if no frames are available, the last frame will be repeated automatically
+                return;
+            }
+        }
+    }
+
+    // TODO: handle presentationTimeUs rollover every 13 hours
 
     // work out how much time has passed on both sides, and check our drift
     CFTimeInterval localElapsed = now - anchorLocal;
-    CFTimeInterval hostElapsed = (du->presentationTimeUs / 1000000.0) - anchorHost;
+    CFTimeInterval hostElapsed = frame.pts - anchorHost;
     CFTimeInterval drift = hostElapsed - localElapsed;
 
     // determine when to present this frame
@@ -213,23 +242,63 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     }
     lastStart = start;
 
+    // Graph the number of frames dropped because of popFrameForQueueSize
+    if (lastFrameNumber > 0) {
+        [self->_callbacks observeFloat:PLOT_DROPPED value:(frame.frameNumber - lastFrameNumber - 1)];
+    }
+
+    // XXX should we snap this frame to vsync interval?
+    targetLocal = deadline;
+
 #ifdef DISPLAYLINK_VERBOSE
-    Log(LOG_I, @"[%f] frame %d, anchorLocal %f, localElapsed %fs, hostElapsed %fs, drift %fs, targetLocal %f (in %fms), frametime %f, pending %d",
-        start, du->frameNumber, anchorLocal, localElapsed, hostElapsed, drift,
-        targetLocal, (targetLocal - now) * 1000.0, frametime,
-        LiGetPendingVideoFrames());
+    Log(LOG_I, @"[%f] frame %d, anchorLocal %f, localElapsed %fs, hostElapsed %fs, drift %fs, targetLocal %f (in %fms), deadline %f",
+        start, frame.frameNumber, anchorLocal, localElapsed, hostElapsed, drift,
+        targetLocal, (targetLocal - now) * 1000.0, deadline);
 #endif
 
     lastTargetLocal = targetLocal;
-    lastHostPts = hostElapsed;
+    lastFrameNumber = frame.frameNumber;
 
-    LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du, targetLocal));
+    [self renderFrame:frame targetTimestamp:targetLocal];
 }
 
-- (void)stop
+- (void)renderFrame:(Frame *)frame targetTimestamp:(CFTimeInterval)targetTimestamp {
+    CMSampleBufferSetOutputPresentationTimeStamp(frame.sampleBuffer,
+                                                 CMTimeMakeWithSeconds((Float64)targetTimestamp, NSEC_PER_SEC));
+
+    if (frame.frameNumber == 1) {
+        // On first frame, set timebase to equal the initial presentation time.
+        // This will sync the display clocks between client and server
+        CMTimebaseRef timebase = NULL;
+        CMTimebaseCreateWithSourceClock(CFAllocatorGetDefault(), CMClockGetHostTimeClock(), &timebase);
+
+        // Set the timebase to the initial pts here
+        CMTimebaseSetTime(timebase, CMSampleBufferGetOutputPresentationTimeStamp(frame.sampleBuffer));
+        CMTimebaseSetRate(timebase, 1.0);
+
+        [self->displayLayer setControlTimebase:timebase];
+    }
+
+    [self->displayLayer enqueueSampleBuffer:frame.sampleBuffer];
+
+    if (frame.frameType == FRAME_TYPE_IDR) {
+        // Ensure the layer is visible now
+        self->displayLayer.hidden = NO;
+
+        // Tell our parent VC to hide the progress indicator
+        [self->_callbacks videoContentShown];
+    }
+}
+
+- (void)cleanup
 {
-    LiWakeWaitForVideoFrame();
     [_displayLink invalidate];
+
+    if (decompressionSession != NULL) {
+        VTDecompressionSessionInvalidate(decompressionSession);
+        CFRelease(decompressionSession);
+        decompressionSession = nil;
+    }
 }
 
 #define NALU_START_PREFIX_SIZE 3
@@ -493,7 +562,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
                    length:(int)length
                bufferType:(int)bufferType
                decodeUnit:(PDECODE_UNIT)du
-          targetTimestamp:(CFTimeInterval)targetTimestamp
 {
     OSStatus status;
 
@@ -606,18 +674,18 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         return DR_NEED_IDR;
     }
 
-    // Check for previous decoder errors before doing anything
-    if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-        Log(LOG_E, @"Display layer rendering failed: %@", displayLayer.error);
-
-        // Recreate the display layer. We are already on the main thread,
-        // so this is safe to do right here.
-        [self reinitializeDisplayLayer];
-
-        // Request an IDR frame to initialize the new decoder
-        free(data);
-        return DR_NEED_IDR;
-    }
+//    // Check for previous decoder errors before doing anything
+//    if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+//        Log(LOG_E, @"Display layer rendering failed: %@", displayLayer.error);
+//
+//        // Recreate the display layer. We are already on the main thread,
+//        // so this is safe to do right here.
+//        [self reinitializeDisplayLayer];
+//
+//        // Request an IDR frame to initialize the new decoder
+//        free(data);
+//        return DR_NEED_IDR;
+//    }
 
     // Now we're decoding actual frame data here
     CMBlockBufferRef frameBlockBuffer;
@@ -669,28 +737,14 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         }
     }
 
-    // Set pts to the current frame's targetTimestamp pts
+    // Set pts to the current frame's pts
     CMSampleTimingInfo sampleTiming = {
         .duration              = kCMTimeInvalid,
-        .presentationTimeStamp = CMTimeMakeWithSeconds(targetTimestamp, NSEC_PER_SEC),
+        .presentationTimeStamp = CMTimeMakeWithSeconds((Float64)du->presentationTimeUs / 1000000.0, NSEC_PER_SEC),
         .decodeTimeStamp       = kCMTimeInvalid,
     };
 
     CMSampleBufferRef sampleBuffer;
-
-    if (du->frameNumber == 1) {
-        // On first frame, set timebase to equal the initial presentation time.
-        // This will sync the display clocks between client and server
-        CMTimebaseRef timebase = NULL;
-        CMTimebaseCreateWithSourceClock(CFAllocatorGetDefault(), CMClockGetHostTimeClock(), &timebase);
-
-        // Set the timebase to the initial pts here
-        CMTimebaseSetTime(timebase, sampleTiming.presentationTimeStamp);
-        CMTimebaseSetRate(timebase, 1.0);
-
-        [self->displayLayer setControlTimebase:timebase];
-    }
-
     status = CMSampleBufferCreateReady(kCFAllocatorDefault,
                                   frameBlockBuffer,
                                   formatDesc, 1, 1,
@@ -703,15 +757,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
         return DR_NEED_IDR;
     }
 
-    // Enqueue the next frame
-    [self->displayLayer enqueueSampleBuffer:sampleBuffer];
-
-    if (du->frameType == FRAME_TYPE_IDR) {
-        // Ensure the layer is visible now
-        self->displayLayer.hidden = NO;
-
-        // Tell our parent VC to hide the progress indicator
-        [self->_callbacks videoContentShown];
+    OSStatus decodeStatus = [self decodeFrameWithSampleBuffer:sampleBuffer frameNumber:du->frameNumber frameType:du->frameType];
+    if (decodeStatus != noErr) {
+        Log(LOG_E, @"Failed to decompress frame: %d", decodeStatus);
+        return DR_NEED_IDR;
     }
 
     // Dereference the buffers
@@ -720,6 +769,49 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp);
     CFRelease(sampleBuffer);
 
     return DR_OK;
+}
+
+- (OSStatus)decodeFrameWithSampleBuffer:(CMSampleBufferRef)sampleBuffer frameNumber:(int)frameNumber frameType:(int)frameType {
+    if (frameType == FRAME_TYPE_IDR || decompressionSession == nil) {
+        [self setupDecompressionSession];
+    }
+
+    CFTimeInterval beforeDecode = CACurrentMediaTime();
+    VTDecodeFrameFlags flags = kVTDecodeFrame_EnableAsynchronousDecompression;
+
+    return VTDecompressionSessionDecodeFrameWithOutputHandler(
+        decompressionSession, sampleBuffer, flags, NULL,
+        ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
+          if (status != noErr) {
+              NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];
+              Log(LOG_E, @"Decompression session error: %@", error);
+              LiRequestIdrFrame();
+              return;
+          }
+
+          if (self->formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->formatDescImageBuffer, imageBuffer)) {
+              OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->formatDescImageBuffer));
+              if (res != noErr) {
+                  Log(LOG_E, @"Failed to create video format description from imageBuffer");
+                  return;
+              }
+          }
+
+          CMSampleBufferRef sampleBuffer;
+          CMSampleTimingInfo sampleTiming = {kCMTimeInvalid, presentationTimestamp, presentationDuration};
+
+          OSStatus err = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, imageBuffer, self->formatDescImageBuffer, &sampleTiming, &sampleBuffer);
+          if (err != noErr) {
+              Log(LOG_E, @"Error creating sample buffer for decompressed image buffer %d", (int)err);
+              return;
+          }
+
+          Frame *frame = [[Frame alloc] initWithSampleBuffer:sampleBuffer frameNumber:frameNumber frameType:frameType];
+          [self->frameQueue pushFrame:frame];
+          self->_frameQueueSize = self->frameQueue.count;
+
+          self->_avgDecodeTime = [self->_callbacks observeFloatReturnAvg:PLOT_DECODE value:(CACurrentMediaTime() - beforeDecode) * 1000.0];
+        });
 }
 
 - (void)setHdrMode:(BOOL)enabled {

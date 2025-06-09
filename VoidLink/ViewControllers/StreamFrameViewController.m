@@ -689,6 +689,10 @@
     [self.imguiView observeFloat:plotId value:value];
 }
 
+- (float) observeFloatReturnAvg:(int)plotId value:(CFTimeInterval)value {
+    return [self.imguiView observeFloatReturnAvg:plotId value:value];
+}
+
 - (int) getDesiredQueueSize {
     return [self.imguiView getDesiredQueueSize];
 }

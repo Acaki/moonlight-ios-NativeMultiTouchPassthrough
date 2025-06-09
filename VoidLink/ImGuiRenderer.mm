@@ -51,9 +51,15 @@
         .buffer = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
-    _plots[PLOT_LI_WAIT_TIME] = {
-        .title  = "LiWait time",
-        .unit   = "us",
+    _plots[PLOT_DECODE] = {
+        .title  = "Decode time",
+        .unit   = "ms",
+        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+    };
+
+    _plots[PLOT_DROPPED] = {
+        .title  = "Frames dropped for queue size",
+        .unit   = "",
         .buffer = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
@@ -187,6 +193,11 @@
     [self.plots[plotId].buffer addValue:(float)value];
 }
 
+- (float) observeFloatReturnAvg:(int)plotId value:(CFTimeInterval)value {
+    [self.plots[plotId].buffer addValue:(float)value];
+    return [self.plots[plotId].buffer averageValue];
+}
+
 - (int) getDesiredQueueSize {
     return self.desiredQueueSize;
 }
@@ -195,7 +206,8 @@
     const int graphs = PlotCount;
 
     // we malloc a buffer for frametimes once and reuse it
-    static float * buffers[4] = {
+    static float * buffers[5] = {
+        (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),

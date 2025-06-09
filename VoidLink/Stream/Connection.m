@@ -59,14 +59,9 @@ int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void*
     return 0;
 }
 
-void DrStart(void)
+void DrCleanup(void)
 {
-    [renderer start];
-}
-
-void DrStop(void)
-{
-    [renderer stop];
+    [renderer cleanup];
 }
 
 -(BandwidthTracker *) getBwTracker
@@ -118,7 +113,7 @@ void DrStop(void)
     }
 }
 
-int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp)
+int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 {
     int offset = 0;
     int ret;
@@ -174,6 +169,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp)
     currentVideoStats.totalFrames++;
     [bwTracker addBytes:decodeUnit->fullLength];
     currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
+    currentVideoStats.avgDecodeTime = [renderer avgDecodeTime];
+    currentVideoStats.frameQueueSize = [renderer frameQueueSize];
 
     PLENTRY entry = decodeUnit->bufferList;
     while (entry != NULL) {
@@ -182,8 +179,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp)
             ret = [renderer submitDecodeBuffer:(unsigned char*)entry->data
                                         length:entry->length
                                     bufferType:entry->bufferType
-                                    decodeUnit:decodeUnit
-                               targetTimestamp:targetTimestamp];
+                                    decodeUnit:decodeUnit];
             if (ret != DR_OK) {
                 free(data);
                 return ret;
@@ -201,8 +197,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit, CFTimeInterval targetTimestamp)
     return [renderer submitDecodeBuffer:data
                                  length:offset
                              bufferType:BUFFER_TYPE_PICDATA
-                             decodeUnit:decodeUnit
-                        targetTimestamp:targetTimestamp];
+                             decodeUnit:decodeUnit];
 }
 
 int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, void* context, int flags)
@@ -469,9 +464,9 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
 
     LiInitializeVideoCallbacks(&_drCallbacks);
     _drCallbacks.setup = DrDecoderSetup;
-    _drCallbacks.start = DrStart;
-    _drCallbacks.stop = DrStop;
-    _drCallbacks.capabilities = CAPABILITY_PULL_RENDERER |
+    _drCallbacks.cleanup = DrCleanup;
+    _drCallbacks.submitDecodeUnit = DrSubmitDecodeUnit;
+    _drCallbacks.capabilities = CAPABILITY_DIRECT_SUBMIT |
                                 CAPABILITY_REFERENCE_FRAME_INVALIDATION_HEVC |
                                 CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1;
 

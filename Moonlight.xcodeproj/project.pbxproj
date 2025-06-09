@@ -51,8 +51,8 @@
 		A19562AD2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
 		A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
 		A1967D9B2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
-		A1967DB62DF3943E00EFC5CF /* FrameBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967DB52DF3943900EFC5CF /* FrameBuffer.m */; };
-		A1967DB72DF3943E00EFC5CF /* FrameBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967DB52DF3943900EFC5CF /* FrameBuffer.m */; };
+		A1967DB62DF3943E00EFC5CF /* FrameQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967DB52DF3943900EFC5CF /* FrameQueue.m */; };
+		A1967DB72DF3943E00EFC5CF /* FrameQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967DB52DF3943900EFC5CF /* FrameQueue.m */; };
 		A1A777DC2DDBEC5500E071D8 /* imgui_widgets.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777DB2DDBEC5500E071D8 /* imgui_widgets.cpp */; };
 		A1A777DD2DDBEC5500E071D8 /* imgui_demo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D52DDBEC5500E071D8 /* imgui_demo.cpp */; };
 		A1A777DF2DDBEC5500E071D8 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D42DDBEC5500E071D8 /* imgui.cpp */; };
@@ -244,8 +244,8 @@
 		A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = imgui_impl_metal.mm; sourceTree = "<group>"; };
 		A1967D992DEE419B00EFC5CF /* FloatBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FloatBuffer.m; sourceTree = "<group>"; };
 		A1967DB32DF036B800EFC5CF /* Plot.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Plot.h; sourceTree = "<group>"; };
-		A1967DB42DF3943200EFC5CF /* FrameBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameBuffer.h; sourceTree = "<group>"; };
-		A1967DB52DF3943900EFC5CF /* FrameBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameBuffer.m; sourceTree = "<group>"; };
+		A1967DB42DF3943200EFC5CF /* FrameQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameQueue.h; sourceTree = "<group>"; };
+		A1967DB52DF3943900EFC5CF /* FrameQueue.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameQueue.m; sourceTree = "<group>"; };
 		A1A777D22DDBEC5500E071D8 /* imconfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imconfig.h; path = ../third_party/imgui/imconfig.h; sourceTree = "<group>"; };
 		A1A777D32DDBEC5500E071D8 /* imgui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imgui.h; path = ../third_party/imgui/imgui.h; sourceTree = "<group>"; };
 		A1A777D42DDBEC5500E071D8 /* imgui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui.cpp; path = ../third_party/imgui/imgui.cpp; sourceTree = "<group>"; };
@@ -621,8 +621,8 @@
 		FB89461519F646E200339C8A /* Stream */ = {
 			isa = PBXGroup;
 			children = (
-				A1967DB52DF3943900EFC5CF /* FrameBuffer.m */,
-				A1967DB42DF3943200EFC5CF /* FrameBuffer.h */,
+				A1967DB52DF3943900EFC5CF /* FrameQueue.m */,
+				A1967DB42DF3943200EFC5CF /* FrameQueue.h */,
 				FB89461619F646E200339C8A /* Connection.h */,
 				FB89461719F646E200339C8A /* Connection.m */,
 				FB89461819F646E200339C8A /* StreamConfiguration.h */,
@@ -949,7 +949,7 @@
 				FB1A67D1213245F800507771 /* TemporaryHost.m in Sources */,
 				FB1A67D3213245F800507771 /* TemporarySettings.m in Sources */,
 				4A37FDA52DCAD28F00441192 /* PaddedLabel.m in Sources */,
-				A1967DB72DF3943E00EFC5CF /* FrameBuffer.m in Sources */,
+				A1967DB72DF3943E00EFC5CF /* FrameQueue.m in Sources */,
 				FB1A67C3213245EA00507771 /* AppAssetManager.m in Sources */,
 				A19562AC2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */,
 				A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */,
@@ -1016,7 +1016,7 @@
 				FB89462D19F646E200339C8A /* MDNSManager.m in Sources */,
 				FB89462B19F646E200339C8A /* StreamView.m in Sources */,
 				FB4678FA1A55FFAD00377732 /* DiscoveryManager.m in Sources */,
-				A1967DB62DF3943E00EFC5CF /* FrameBuffer.m in Sources */,
+				A1967DB62DF3943E00EFC5CF /* FrameQueue.m in Sources */,
 				98D5856D1C0EA79600F6CC00 /* TemporaryHost.m in Sources */,
 				FB89463519F646E200339C8A /* MainFrameViewController.m in Sources */,
 				FBD1C8E21A8AD71400C6703C /* Logger.m in Sources */,
@@ -1125,7 +1125,7 @@
 					"$(PROJECT_DIR)/libs/FFmpeg/lib/tvOS-Sim",
 				);
 				MARKETING_VERSION = 9.0.2;
-				MTL_ENABLE_DEBUG_INFO = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = org.hybridized.Moonlight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;

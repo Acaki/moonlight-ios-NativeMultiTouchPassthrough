@@ -21,5 +21,6 @@
 
 -(nonnull instancetype) initWithFrame:(CGRect)bounds;
 -(void) observeFloat:(int)plotId value:(CFTimeInterval)value;
+-(float) observeFloatReturnAvg:(int)plotId value:(CFTimeInterval)value;
 -(int) getDesiredQueueSize;
 @end

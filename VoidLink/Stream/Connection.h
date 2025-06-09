@@ -23,6 +23,8 @@ typedef struct {
     int maxHostProcessingLatency;
     int minHostProcessingLatency;
     CFTimeInterval displayRefreshRate;
+    float avgDecodeTime;
+    NSUInteger frameQueueSize;
 } video_stats_t;
 
 @interface Connection : NSOperation <NSStreamDelegate>
