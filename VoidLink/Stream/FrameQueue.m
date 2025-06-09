@@ -1,5 +1,11 @@
 #import <VideoToolbox/VideoToolbox.h>
+#import <os/lock.h>
 #import "FrameQueue.h"
+
+// The logging in this class is very heavy
+#if !defined(NDEBUG)
+# define FRAME_QUEUE_VERBOSE
+#endif
 
 @implementation Frame
 
@@ -8,7 +14,7 @@
         _frameNumber  = frameNumber;
         _frameType    = frameType;
         _sampleBuffer = sampleBuffer;
-        _pts = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer));
+        _pts = CMTimeGetSeconds(CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer));
         //Log(LOG_I, @"[%d / %f] Frame init", _frameNumber, _pts);
     }
     return self;
@@ -19,9 +25,11 @@
     CFRelease(_sampleBuffer);
 }
 
+#ifdef FRAME_QUEUE_VERBOSE
 - (NSString *)description {
     return [NSString stringWithFormat:@"{%d / %f}", self.frameNumber, self.pts];
 }
+#endif
 
 @end
 
@@ -29,6 +37,7 @@
 
 @implementation FrameQueue {
     NSMutableArray<Frame *> *_queue;
+    os_unfair_lock _lock;
 }
 
 - (instancetype)init {
@@ -36,90 +45,102 @@
         _maxCapacity = 15;
         _desiredQueueSize = 1;
         _queue = [NSMutableArray arrayWithCapacity:_maxCapacity];
+        _lock = OS_UNFAIR_LOCK_INIT;
     }
     return self;
 }
 
 - (void)pushFrame:(Frame *)frame {
-    @synchronized(self) {
-        if (_queue.count >= _maxCapacity) {
-            // Drop oldest
-            Log(LOG_I, @"[x %d] queue full, dropping oldest", _queue.firstObject.frameNumber);
-            [_queue removeObjectAtIndex:0];
-        }
-        [_queue addObject:frame];
-        Log(LOG_I, @"[-> %d / %f] pushFrame, queue size %d", frame.frameNumber, frame.pts, _queue.count);
+    os_unfair_lock_lock(&_lock);
+    if (_queue.count >= _maxCapacity) {
+        // Drop oldest
+#ifdef FRAME_QUEUE_VERBOSE
+        Log(LOG_I, @"[x %d] queue full, dropping oldest", _queue.firstObject.frameNumber);
+#endif
+        [_queue removeObjectAtIndex:0];
     }
+    [_queue addObject:frame];
+#ifdef FRAME_QUEUE_VERBOSE
+    Log(LOG_I, @"[-> %d / %f] pushFrame, queue size %d", frame.frameNumber, frame.pts, _queue.count);
+#endif
+    os_unfair_lock_unlock(&_lock);
 }
 
 - (Frame *)popFrame {
-    @synchronized(self) {
-        if (_queue.count == 0) return nil;
-        Frame *selected = _queue.firstObject;
+    os_unfair_lock_lock(&_lock);
+    Frame *selected = nil;
+    if (_queue.count > 0) {
+        selected = _queue.firstObject;
         [_queue removeObjectAtIndex:0];
+#ifdef FRAME_QUEUE_VERBOSE
         Log(LOG_I, @"[<- %d / %f] popFrame, queue size %d", selected.frameNumber, selected.pts, _queue.count);
-        return selected;
+#endif
     }
+    os_unfair_lock_unlock(&_lock);
+    return selected;
 }
 
 - (Frame *)popFrameForPTS:(CFTimeInterval)pts {
-    @synchronized(self) {
-        if (_queue.count == 0) return nil;
-        Frame *selected = nil;
-        while (_queue.count > _desiredQueueSize) {
-            Frame *first = _queue.firstObject;
-            if (first.pts <= pts) {
-                selected = first;
-                [_queue removeObjectAtIndex:0];
-            } else {
-                break; // The next frame is in the future
-            }
+    os_unfair_lock_lock(&_lock);
+    Frame *selected = nil;
+    while (_queue.count > _desiredQueueSize) {
+        Frame *first = _queue.firstObject;
+        if (first.pts <= pts) {
+            selected = first;
+            [_queue removeObjectAtIndex:0];
+        } else {
+            break; // The next frame is in the future
         }
-        if (selected != nil) {
-            Log(LOG_I, @"[<- %d / %f] popFrameForPTS:%f, queue size %d: %@",
-                selected.frameNumber, selected.pts, pts, _queue.count, self);
-        }
-        return selected;
     }
+#ifdef FRAME_QUEUE_VERBOSE
+    if (selected != nil) {
+        Log(LOG_I, @"[<- %d / %f] popFrameForPTS:%f, queue size %d: %@",
+            selected.frameNumber, selected.pts, pts, _queue.count, self);
+    }
+#endif
+    os_unfair_lock_unlock(&_lock);
+    return selected;
 }
 
 - (Frame *)popFrameForQueueSize:(int)desiredQueueSize {
-    @synchronized(self) {
-        if (_queue.count == 0) return nil;
-        Frame *selected = nil;
-        while (_queue.count > _desiredQueueSize) {
-            selected = _queue.firstObject;
-            [_queue removeObjectAtIndex:0];
-        }
-        if (selected != nil) {
-            Log(LOG_I, @"[<- %d / %f] popFrameForQueueSize:%d, queue size %d: %@",
-                selected.frameNumber, selected.pts, desiredQueueSize, _queue.count, self);
-        }
-        return selected;
+    os_unfair_lock_lock(&_lock);
+    Frame *selected = nil;
+    while (_queue.count > desiredQueueSize) {
+        selected = _queue.firstObject;
+        [_queue removeObjectAtIndex:0];
     }
+#ifdef FRAME_QUEUE_VERBOSE
+    if (selected != nil) {
+        Log(LOG_I, @"[<- %d / %f] popFrameForQueueSize:%d, queue size %d: %@",
+            selected.frameNumber, selected.pts, desiredQueueSize, _queue.count, self);
+    }
+#endif
+    os_unfair_lock_unlock(&_lock);
+    return selected;
 }
 
 - (NSUInteger)count {
-    @synchronized(self) {
-        return _queue.count;
-    }
+    os_unfair_lock_lock(&_lock);
+    NSUInteger c = _queue.count;
+    os_unfair_lock_unlock(&_lock);
+    return c;
 }
 
 - (void)clear {
-    @synchronized(self) {
-        [_queue removeAllObjects];
-    }
+    os_unfair_lock_lock(&_lock);
+    [_queue removeAllObjects];
+    os_unfair_lock_unlock(&_lock);
 }
 
+#ifdef FRAME_QUEUE_VERBOSE
 // Debug output lists each frame in the queue's pts value
 - (NSString *)description {
-    @synchronized(self) {
-        NSMutableArray *desc = [NSMutableArray arrayWithCapacity:_queue.count];
-        for (Frame *f in _queue) {
-            [desc addObject:[f description]];
-        }
-        return [NSString stringWithFormat:@"[%@]", [desc componentsJoinedByString:@", "]];
+    NSMutableArray *desc = [NSMutableArray arrayWithCapacity:_queue.count];
+    for (Frame *f in _queue) {
+        [desc addObject:[f description]];
     }
+    return [NSString stringWithFormat:@"[%@]", [desc componentsJoinedByString:@", "]];
 }
+#endif
 
 @end

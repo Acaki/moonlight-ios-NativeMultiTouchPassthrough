@@ -194,7 +194,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         // we might not have very accurate sync with the correct pts values, so if we notice that the queue
         // has too many frames in it, it means we are too far behind, and should request to skip to the newest
         // frame, based on desiredQueueSize
-        if (frameQueue.count > desiredQueueSize) {
+        if (frameQueue.count > desiredQueueSize + 1) {
             frame = [frameQueue popFrameForQueueSize:desiredQueueSize];
             if (!frame) {
                 return;
@@ -248,12 +248,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 
     // XXX should we snap this frame to vsync interval?
-    targetLocal = deadline;
+    //targetLocal = deadline - 0.003f;
 
 #ifdef DISPLAYLINK_VERBOSE
-    Log(LOG_I, @"[%f] frame %d, anchorLocal %f, localElapsed %fs, hostElapsed %fs, drift %fs, targetLocal %f (in %fms), deadline %f",
+    Log(LOG_I, @"[%f] frame %d, anchorLocal %f, localElapsed %fs, hostElapsed %fs, drift %fs, targetLocal %f (%fms before deadline), deadline %f",
         start, frame.frameNumber, anchorLocal, localElapsed, hostElapsed, drift,
-        targetLocal, (targetLocal - now) * 1000.0, deadline);
+        targetLocal, (deadline - targetLocal) * 1000.0, deadline);
 #endif
 
     lastTargetLocal = targetLocal;
@@ -808,7 +808,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
           Frame *frame = [[Frame alloc] initWithSampleBuffer:sampleBuffer frameNumber:frameNumber frameType:frameType];
           [self->frameQueue pushFrame:frame];
-          self->_frameQueueSize = self->frameQueue.count;
+          self->_frameQueueSize = self->frameQueue.count; // this is the count shown in stats
 
           self->_avgDecodeTime = [self->_callbacks observeFloatReturnAvg:PLOT_DECODE value:(CACurrentMediaTime() - beforeDecode) * 1000.0];
         });

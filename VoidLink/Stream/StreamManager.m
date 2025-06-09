@@ -188,7 +188,7 @@
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (%.2f Hz) (Codec: %@)\n"
             "Bitrate: %.1f Mbps, Peak (%lus): %.1f\n"
             "%@"
-            "Frames dropped: %.2f%%, in queue: %d\n"
+            "Frames dropped: %.2f%%, in queue: %lu\n"
             "Average network latency: %@\n"
             "Average decoding time: %.2f ms",
             _config.width,
@@ -199,7 +199,7 @@
             avgVideoMbps, [_connection getBwTracker].windowSeconds, peakVideoMbps,
             hostProcessingString,
             stats.networkDroppedFrames / interval,
-            stats.frameQueueSize,
+            (unsigned long)stats.frameQueueSize,
             latencyString,
             stats.avgDecodeTime];
 }
