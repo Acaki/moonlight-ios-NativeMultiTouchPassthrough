@@ -4,7 +4,7 @@
 
 // The logging in this class is very heavy
 #if !defined(NDEBUG)
-# define FRAME_QUEUE_VERBOSE
+//# define FRAME_QUEUE_VERBOSE
 #endif
 
 @implementation Frame
@@ -46,11 +46,13 @@
         _desiredQueueSize = 1;
         _queue = [NSMutableArray arrayWithCapacity:_maxCapacity];
         _lock = OS_UNFAIR_LOCK_INIT;
+        // start with count = 0, so waits will block
+        _semaphore = dispatch_semaphore_create(0);
     }
     return self;
 }
 
-- (void)pushFrame:(Frame *)frame {
+- (void)enqueue:(Frame *)frame {
     os_unfair_lock_lock(&_lock);
     if (_queue.count >= _maxCapacity) {
         // Drop oldest
@@ -61,26 +63,42 @@
     }
     [_queue addObject:frame];
 #ifdef FRAME_QUEUE_VERBOSE
-    Log(LOG_I, @"[-> %d / %f] pushFrame, queue size %d", frame.frameNumber, frame.pts, _queue.count);
+    Log(LOG_I, @"[-> %d / %f] enqueue frame, queue size %d", frame.frameNumber, frame.pts, _queue.count);
 #endif
     os_unfair_lock_unlock(&_lock);
+    dispatch_semaphore_signal(_semaphore);
 }
 
-- (Frame *)popFrame {
+- (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout {
+    if (_queue.count == 0 && timeout > 0.0) {
+        dispatch_time_t when = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC));
+        if (dispatch_semaphore_wait(self.semaphore, when) != 0) {
+            // timed out
+#ifdef FRAME_QUEUE_VERBOSE
+            Log(LOG_I, @"[-] dequeue timed out after %f", timeout);
+#endif
+            return nil;
+        }
+    }
+
+    return [self dequeue];
+}
+
+- (Frame *)dequeue {
     os_unfair_lock_lock(&_lock);
     Frame *selected = nil;
     if (_queue.count > 0) {
         selected = _queue.firstObject;
         [_queue removeObjectAtIndex:0];
 #ifdef FRAME_QUEUE_VERBOSE
-        Log(LOG_I, @"[<- %d / %f] popFrame, queue size %d", selected.frameNumber, selected.pts, _queue.count);
+        Log(LOG_I, @"[<- %d / %f] dequeue frame, queue size %d", selected.frameNumber, selected.pts, _queue.count);
 #endif
     }
     os_unfair_lock_unlock(&_lock);
     return selected;
 }
 
-- (Frame *)popFrameForPTS:(CFTimeInterval)pts {
+- (Frame *)dequeueForPTS:(CFTimeInterval)pts {
     os_unfair_lock_lock(&_lock);
     Frame *selected = nil;
     while (_queue.count > _desiredQueueSize) {
@@ -94,7 +112,7 @@
     }
 #ifdef FRAME_QUEUE_VERBOSE
     if (selected != nil) {
-        Log(LOG_I, @"[<- %d / %f] popFrameForPTS:%f, queue size %d: %@",
+        Log(LOG_I, @"[<- %d / %f] dequeueForPTS:%f, queue size %d: %@",
             selected.frameNumber, selected.pts, pts, _queue.count, self);
     }
 #endif
@@ -102,7 +120,7 @@
     return selected;
 }
 
-- (Frame *)popFrameForQueueSize:(int)desiredQueueSize {
+- (Frame *)dequeueForQueueSize:(int)desiredQueueSize {
     os_unfair_lock_lock(&_lock);
     Frame *selected = nil;
     while (_queue.count > desiredQueueSize) {
@@ -111,7 +129,7 @@
     }
 #ifdef FRAME_QUEUE_VERBOSE
     if (selected != nil) {
-        Log(LOG_I, @"[<- %d / %f] popFrameForQueueSize:%d, queue size %d: %@",
+        Log(LOG_I, @"[<- %d / %f] dequeueForQueueSize:%d, queue size %d: %@",
             selected.frameNumber, selected.pts, desiredQueueSize, _queue.count, self);
     }
 #endif

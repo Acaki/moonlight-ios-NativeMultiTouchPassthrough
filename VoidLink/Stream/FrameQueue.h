@@ -17,11 +17,13 @@
 
 @property (nonatomic, assign) NSUInteger maxCapacity;
 @property (nonatomic) int desiredQueueSize;
+@property (nonatomic) dispatch_semaphore_t semaphore;
 
-- (void)pushFrame:(Frame *)frame;
-- (Frame *)popFrame;
-- (Frame *)popFrameForPTS:(CFTimeInterval)targetPTS;
-- (Frame *)popFrameForQueueSize:(int)desiredQueueSize;
+- (void)enqueue:(Frame *)frame;
+- (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout;
+- (Frame *)dequeue;
+- (Frame *)dequeueForPTS:(CFTimeInterval)targetPTS;
+- (Frame *)dequeueForQueueSize:(int)desiredQueueSize;
 - (NSUInteger)count;
 - (void)clear;
 

@@ -9,9 +9,15 @@ typedef enum {
     PlotCount
 } PlotType;
 
+typedef enum {
+    PLOT_LABEL_MIN_MAX_AVG = 0,
+    PLOT_LABEL_TOTAL
+} PlotLabelType;
+
 struct PlotDef {
     FloatBuffer * _Nonnull buffer;
     const char * _Nonnull title;
+    PlotLabelType labelType;
     const char * _Nonnull unit;
     double scaleTarget;
     float minY;

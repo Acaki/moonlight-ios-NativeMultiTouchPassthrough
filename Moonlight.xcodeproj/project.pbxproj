@@ -241,6 +241,7 @@
 		A10BC62E2DE8E65F00905783 /* BandwidthTracker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BandwidthTracker.h; sourceTree = "<group>"; };
 		A12025BD2DD7E352005015C8 /* ImGuiRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ImGuiRenderer.h; sourceTree = "<group>"; };
 		A12025BE2DD7E36B005015C8 /* ImGuiRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ImGuiRenderer.mm; sourceTree = "<group>"; };
+		A179C7B02DF72DAF00901300 /* Queue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Queue.h; sourceTree = "<group>"; };
 		A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = imgui_impl_metal.mm; sourceTree = "<group>"; };
 		A1967D992DEE419B00EFC5CF /* FloatBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FloatBuffer.m; sourceTree = "<group>"; };
 		A1967DB32DF036B800EFC5CF /* Plot.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Plot.h; sourceTree = "<group>"; };
@@ -639,6 +640,7 @@
 		FB89461E19F646E200339C8A /* Utility */ = {
 			isa = PBXGroup;
 			children = (
+				A179C7B02DF72DAF00901300 /* Queue.h */,
 				A1967DB32DF036B800EFC5CF /* Plot.h */,
 				A10BC62E2DE8E65F00905783 /* BandwidthTracker.h */,
 				A10BC62B2DE8E65800905783 /* BandwidthTracker.m */,

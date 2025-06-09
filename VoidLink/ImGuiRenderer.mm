@@ -1,6 +1,9 @@
 #import "ImGuiRenderer.h"
 #import <Metal/Metal.h>
 
+// Comment out to enable ImGui
+//#define IMGUI_DISABLE
+
 #import "imgui.h"
 #import "imgui_impl_metal.h"
 //#import "implot.h"
@@ -17,6 +20,7 @@
     _device = MTLCreateSystemDefaultDevice();
     _commandQueue = [_device newCommandQueue];
 
+#if !defined(IMGUI_DISABLE)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     //ImPlot::CreateContext();
@@ -25,6 +29,7 @@
     ImGui::StyleColorsDark();
 
     ImGui_ImplMetal_Init(_device);
+#endif
 
     // Graphs init
     _graphAreaHeight = 200.0f;
@@ -39,28 +44,32 @@
     };
 
     _plots[PLOT_DRIFT] = {
-        .title  = "Drift",
-        .unit   = "ms",
-        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+        .title     = "Drift",
+        .labelType = PLOT_LABEL_MIN_MAX_AVG,
+        .unit      = "ms",
+        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
     _plots[PLOT_DISPLAYLINK] = {
-        .title  = "DisplayLink interval",
-        .unit   = "ms",
+        .title       = "DisplayLink interval",
+        .labelType   = PLOT_LABEL_MIN_MAX_AVG,
+        .unit        = "ms",
         .scaleTarget = 1000.0 / self.mtkView.preferredFramesPerSecond,
-        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+        .buffer      = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
     _plots[PLOT_DECODE] = {
-        .title  = "Decode time",
-        .unit   = "ms",
-        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+        .title     = "Decode time",
+        .labelType = PLOT_LABEL_MIN_MAX_AVG,
+        .unit      = "ms",
+        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
     _plots[PLOT_DROPPED] = {
-        .title  = "Frames dropped for queue size",
-        .unit   = "",
-        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+        .title     = "Frames dropped for queue size",
+        .labelType = PLOT_LABEL_TOTAL,
+        .unit      = "",
+        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
     _desiredQueueSize = 1;
@@ -91,6 +100,7 @@
 
 - (void)drawInMTKView:(MTKView *)view
 {
+#if !defined(IMGUI_DISABLE)
     ImGuiIO &io = ImGui::GetIO();
     io.DisplaySize.x = view.bounds.size.width;
     io.DisplaySize.y = view.bounds.size.height;
@@ -138,6 +148,7 @@
     // Present
     [commandBuffer presentDrawable:view.currentDrawable afterMinimumDuration:1.0 / view.preferredFramesPerSecond];
     [commandBuffer commit];
+#endif
 }
 
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size
@@ -148,9 +159,11 @@
 {
     [super viewDidDisappear:animated];
 
+#if !defined(IMGUI_DISABLE)
     ImGui_ImplMetal_Shutdown();
     //ImPlot::DestroyContext();
     ImGui::DestroyContext();
+#endif
 }
 
 //-----------------------------------------------------------------------------------
@@ -164,6 +177,7 @@
 // interaction actually works surprisingly well.
 -(void)updateIOWithTouchEvent:(UIEvent *)event
 {
+#if !defined(IMGUI_DISABLE)
     UITouch *anyTouch = event.allTouches.anyObject;
     CGPoint touchLocation = [anyTouch locationInView:self.view];
     ImGuiIO &io = ImGui::GetIO();
@@ -180,14 +194,17 @@
         }
     }
     io.AddMouseButtonEvent(0, hasActiveTouch);
+#endif
 }
 
+#if !defined(IMGUI_DISABLE)
 -(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
 -(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
 -(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event  { [self updateIOWithTouchEvent:event]; }
 -(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
+#endif
 
-/// Stats Graphs
+/// Stats Graphs, we can still track data this way even with ImGui disabled
 
 - (void) observeFloat:(int)plotId value:(CFTimeInterval)value {
     [self.plots[plotId].buffer addValue:(float)value];
@@ -200,6 +217,21 @@
 
 - (int) getDesiredQueueSize {
     return self.desiredQueueSize;
+}
+
+#if !defined(IMGUI_DISABLE)
+// Helper to display a little (?) mark which shows a tooltip when hovered.
+// In your own code you may want to display an actual icon if you are using a merged icon fonts (see docs/FONTS.md)
+static void HelpMarker(const char* desc)
+{
+    ImGui::TextDisabled("(?)");
+    if (ImGui::BeginItemTooltip())
+    {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::TextUnformatted(desc);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
 }
 
 - (void) drawStatsGraphs {
@@ -226,7 +258,7 @@
     ImGui::Begin("##Stats", nullptr, flags);
 
     // Figure out how tall each sub‐plot should be, with spacing
-    int modules = graphs + 1;
+    int modules = graphs + 2;
     float spacing = ImGui::GetStyle().ItemSpacing.y;
     ImVec2 avail  = ImGui::GetContentRegionAvail();
     float plotH   = (avail.y - (modules - 1) * spacing) / modules;
@@ -236,10 +268,20 @@
         float minY, maxY;
         int countF = [self.plots[i].buffer copyValuesIntoBuffer:buffers[i] min:&minY max:&maxY];
         float avgF = [self.plots[i].buffer averageValue];
+        if (!countF) {
+            continue;
+        }
 
         // Ugly, but can't get ImPlot to build for iOS
         char label[64];
-        sprintf(label, "%s  %.1f/%.1f/%.1f %s", self.plots[i].title, minY, maxY, avgF, self.plots[i].unit);
+        switch (self.plots[i].labelType) {
+            case PLOT_LABEL_MIN_MAX_AVG:
+                sprintf(label, "%s  %.1f/%.1f/%.1f %s", self.plots[i].title, minY, maxY, avgF, self.plots[i].unit);
+                break;
+            case PLOT_LABEL_TOTAL:
+                sprintf(label, "%s  %.1f %s", self.plots[i].title, [self.plots[i].buffer total], self.plots[i].unit);
+                break;
+        }
         float scaleMin = FLT_MAX;
         float scaleMax = FLT_MAX;
         if (self.plots[i].scaleTarget) {
@@ -257,7 +299,19 @@
         self.desiredQueueSize = dqs;
     }
 
+    const char* items[] = { "Standard Frame Pacing", "PTS Frame Pacing" };
+    static int item_current = 0;
+    ImGui::Combo("Frame pacing method", &item_current, items, IM_ARRAYSIZE(items));
+    ImGui::SameLine(); HelpMarker(
+        "Standard Frame Pacing: This frame pacing method attempts to match the behavior of moonlight-qt's Pacer class. Incoming frames from "
+        "Sunshine are asynchronously processed into a queue by another thread. This method is called every vsync and aims "
+        "to present the most recent frame each vsync, while retaining a buffer of 1 frame. Frames may be dropped from the queue "
+        "if it grows too large, but the queue is allowed to grow as large as 3 frames if the stream framerate is slower than the display refresh rate. "
+        "The queue size can be adjusted using the slider.\n\n"
+        "PTS Frame Pacing: This experimental frame pacing method uses timestamps from Sunshine to pace frames.");
+
     ImGui::End();
 }
+#endif
 
 @end

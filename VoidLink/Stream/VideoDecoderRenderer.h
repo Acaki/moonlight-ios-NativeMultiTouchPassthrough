@@ -29,8 +29,12 @@
 - (int)submitDecodeBuffer:(unsigned char *)data
                    length:(int)length
                bufferType:(int)bufferType
-               decodeUnit:(PDECODE_UNIT)du;
+               decodeUnit:(PDECODE_UNIT)du
+          decodeStartTime:(CFTimeInterval)decodeStartTime;
 
-- (OSStatus)decodeFrameWithSampleBuffer:(CMSampleBufferRef)sampleBuffer frameNumber:(int)frameNumber frameType:(int)frameType;
+- (OSStatus)decodeFrameWithSampleBuffer:(CMSampleBufferRef)sampleBuffer
+                            frameNumber:(int)frameNumber
+                              frameType:(int)frameType
+                        decodeStartTime:(CFTimeInterval)decodeStartTime;
 
 @end

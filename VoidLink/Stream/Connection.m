@@ -117,6 +117,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 {
     int offset = 0;
     int ret;
+    CFTimeInterval decodeStartTime = CACurrentMediaTime();
+
     unsigned char* data = (unsigned char*) malloc(decodeUnit->fullLength);
     if (data == NULL) {
         // A frame was lost due to OOM condition
@@ -168,6 +170,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     currentVideoStats.receivedFrames++;
     currentVideoStats.totalFrames++;
     [bwTracker addBytes:decodeUnit->fullLength];
+    // TODO: pull all of these in one call
     currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
     currentVideoStats.avgDecodeTime = [renderer avgDecodeTime];
     currentVideoStats.frameQueueSize = [renderer frameQueueSize];
@@ -179,7 +182,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
             ret = [renderer submitDecodeBuffer:(unsigned char*)entry->data
                                         length:entry->length
                                     bufferType:entry->bufferType
-                                    decodeUnit:decodeUnit];
+                                    decodeUnit:decodeUnit
+                               decodeStartTime:decodeStartTime];
             if (ret != DR_OK) {
                 free(data);
                 return ret;
@@ -197,7 +201,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     return [renderer submitDecodeBuffer:data
                                  length:offset
                              bufferType:BUFFER_TYPE_PICDATA
-                             decodeUnit:decodeUnit];
+                             decodeUnit:decodeUnit
+                        decodeStartTime:decodeStartTime];
 }
 
 int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, void* context, int flags)

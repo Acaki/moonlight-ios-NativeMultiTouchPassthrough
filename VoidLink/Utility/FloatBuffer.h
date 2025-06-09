@@ -21,6 +21,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// The arithmetic average (sum / count) of all entries. Zero if count=0.
 @property (nonatomic, readonly) float averageValue;
 
+@property (nonatomic, readonly) float total;
+
 /// Designated initializer. `capacity` must be >0 and a power of two, otherwise throws an exception.
 - (instancetype)initWithCapacity:(int)capacity NS_DESIGNATED_INITIALIZER;
 
