@@ -19,6 +19,10 @@
     return self;
 }
 
+- (NSString *)description {
+    return [NSString stringWithFormat:@"[%@]", [self.queue componentsJoinedByString:@","]];
+}
+
 - (void)enqueue:(int)value {
     [self.queue addObject:@(value)];
 }

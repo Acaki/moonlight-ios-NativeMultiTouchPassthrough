@@ -44,9 +44,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     CMVideoFormatDescriptionRef formatDescImageBuffer;
     VTDecompressionSessionRef decompressionSession;
 
-    CADisplayLink* _displayLink;
+    CADisplayLink *_displayLink;
     FrameQueue *frameQueue;
     IntQueue *pacingHistory;
+    int pacingStartupFrames;
 }
 
 - (void)reinitializeDisplayLayer
@@ -111,6 +112,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     parameterSetBuffers = [[NSMutableArray alloc] init];
     frameQueue = [[FrameQueue alloc] init];
     pacingHistory = [[IntQueue alloc] init];
+    pacingStartupFrames = 10;
 
     [self reinitializeDisplayLayer];
 
@@ -123,11 +125,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     self->frameRate = frameRate;
 
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingQueue:)];
+    //_displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingTimestamps:)];
     if (@available(iOS 15.0, tvOS 15.0, *)) {
-        UIScreen *screen = [UIScreen mainScreen];
-        NSInteger maxFPS = screen.maximumFramesPerSecond;
-        float minFPS = MIN(self->frameRate, maxFPS);
-        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(minFPS, maxFPS, minFPS);
+        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
     }
     else {
         _displayLink.preferredFramesPerSecond = self->frameRate;
@@ -158,45 +158,39 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 //
 // Pseudocode:
 // frameDropTarget = 1
-// Each Vsync:
-//   If streamFps >= displayHz:
-//     frameDropTarget = 3 (Be lenient as long as the queue length was 1 within the last 500ms)
-//   Track queue size in rolling history
-//   while (queue size > frameDropTarget) {
-//     drop frame
-//   }
+// Start displayLink, interval matching stream framerate
+
 //   take pending frame or wait for a frame for (deadline - 3ms or avg render time)
 //   render frame before vblank
 - (void)framePacingUsingQueue:(CADisplayLink *)link {
-    static CFTimeInterval lastTargetLocal = 0.0f;
-
     CFTimeInterval deadline = link.targetTimestamp;
     _displayRefreshRate = 1.0f / link.duration;
+    static CFTimeInterval lastTargetLocal = 0.0f;
 
-    int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 1, but allow user control using ImGui slider
-
-    if (self->frameRate >= _displayRefreshRate) {
-        // Be lenient as long as the queue length resolves before the end of frame history
-        for (NSNumber *entry in pacingHistory) {
-            if (entry.intValue <= frameDropTarget) {
-                frameDropTarget += 3;
-                break;
-            }
+    // during stream startup, wait and let the first frames through untouched
+    if (pacingStartupFrames > 0) {
+        if ([frameQueue count] == 0) {
+            // waiting for first frame
+            return;
         }
-
-        // Keep a rolling 500 ms window of pacing queue history
-        if ([pacingHistory count] >= _displayRefreshRate / 2) {
-            [pacingHistory dequeue];
-        }
-        [pacingHistory enqueue:(int)[frameQueue count]];
+        LogOnce(LOG_I, @"Frame pacing: target %f Hz with %d FPS stream", _displayRefreshRate, self->frameRate);
+        pacingStartupFrames--;
     }
 
-    // Catch up if we're several frames ahead
-    int pacingDroppedFrames = 0;
-    while ([frameQueue count] > frameDropTarget) {
-        [frameQueue dequeue];
-        pacingDroppedFrames++;
-        // TODO: pass to stats
+    if (pacingStartupFrames <= 0) {
+        // we're past startup and can begin pacing/dropping frames
+
+        int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 1, but allow user control using ImGui slider
+
+        // Catch up if we're several frames ahead
+        int pacingDroppedFrames = 0;
+        while ([frameQueue count] > frameDropTarget) {
+            Frame *drop = [frameQueue dequeue];
+            //Log(LOG_I, @"pacing dropped frame %d", drop.frameNumber);
+            pacingDroppedFrames++;
+            // TODO: pass to stats
+        }
+        [self->_callbacks observeFloat:PLOT_DROPPED value:pacingDroppedFrames];
     }
 
     // Get the next frame or wait if necessary. Aim to present the frame 3ms before deadline to allow
@@ -211,8 +205,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             [self->_callbacks observeFloat:PLOT_FRAMETIME value:(targetLocal - lastTargetLocal) * 1000.0];
         }
         lastTargetLocal = targetLocal;
-
-        [self->_callbacks observeFloat:PLOT_DROPPED value:pacingDroppedFrames];
     }
 }
 
@@ -367,6 +359,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 - (void)cleanup
 {
     [_displayLink invalidate];
+    pacingStartupFrames = 10;
 
     if (decompressionSession != NULL) {
         VTDecompressionSessionInvalidate(decompressionSession);

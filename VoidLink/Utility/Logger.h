@@ -9,6 +9,7 @@
 #ifndef Limelight_Logger_h
 #define Limelight_Logger_h
 
+#import <dispatch/dispatch.h>
 #import <stdarg.h>
 
 typedef enum {
@@ -25,5 +26,17 @@ typedef enum {
 
 void Log(LogLevel level, NSString* fmt, ...);
 void LogTag(LogLevel level, NSString* tag, NSString* fmt, ...);
+
+// LogOnce() is a one-time log message for use in hot areas of the code
+#define CONCAT(a,b)   CONCAT2(a,b)
+#define CONCAT2(a,b)  a##b
+
+#define LogOnce(level, fmt, ...)                                    \
+  do {                                                              \
+    static dispatch_once_t CONCAT(_onceToken_, __LINE__);           \
+    dispatch_once(&CONCAT(_onceToken_, __LINE__), ^{                \
+      Log(level, fmt, ##__VA_ARGS__);                               \
+    });                                                             \
+  } while (0)
 
 #endif
