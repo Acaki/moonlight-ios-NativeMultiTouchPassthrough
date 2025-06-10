@@ -22,6 +22,8 @@
 
 - (void)dealloc {
     //Log(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, _pts);
+    // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
+    // so we don't need to CFRetain in init
     CFRelease(_sampleBuffer);
 }
 
@@ -70,15 +72,18 @@
 }
 
 - (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout {
-    if (_queue.count == 0 && timeout > 0.0) {
-        dispatch_time_t when = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC));
-        if (dispatch_semaphore_wait(self.semaphore, when) != 0) {
-            // timed out
+    Frame *frame = [self dequeue];
+    if (frame || timeout <= 0.0) {
+        return frame;
+    }
+
+    dispatch_time_t when = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC));
+    if (dispatch_semaphore_wait(self.semaphore, when) != 0) {
+        // timed out
 #ifdef FRAME_QUEUE_VERBOSE
-            Log(LOG_I, @"[-] dequeue timed out after %f", timeout);
+        Log(LOG_I, @"[-] dequeue timed out after %f", timeout);
 #endif
-            return nil;
-        }
+        return nil;
     }
 
     return [self dequeue];

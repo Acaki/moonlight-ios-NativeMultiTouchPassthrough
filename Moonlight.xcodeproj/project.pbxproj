@@ -1127,7 +1127,6 @@
 					"$(PROJECT_DIR)/libs/FFmpeg/lib/tvOS-Sim",
 				);
 				MARKETING_VERSION = 9.0.2;
-				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = org.hybridized.Moonlight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;
@@ -1185,7 +1184,6 @@
 					"$(PROJECT_DIR)/libs/FFmpeg/lib/tvOS-Sim",
 				);
 				MARKETING_VERSION = 9.0.2;
-				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = org.hybridized.Moonlight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;

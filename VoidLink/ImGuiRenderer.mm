@@ -1,4 +1,5 @@
 #import "ImGuiRenderer.h"
+#import "Logger.h"
 #import <Metal/Metal.h>
 
 // Comment out to enable ImGui
@@ -66,7 +67,7 @@
     };
 
     _plots[PLOT_DROPPED] = {
-        .title     = "Frames dropped for queue size",
+        .title     = "Frames dropped for pacing",
         .labelType = PLOT_LABEL_TOTAL,
         .unit      = "",
         .buffer    = [[FloatBuffer alloc] initWithCapacity:512]

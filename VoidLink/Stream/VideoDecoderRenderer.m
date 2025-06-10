@@ -132,7 +132,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     else {
         _displayLink.preferredFramesPerSecond = self->frameRate;
     }
-    [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
+    [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 
 - (void) setupDecompressionSession {
@@ -351,7 +351,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         [self->displayLayer setControlTimebase:timebase];
     }
 
-    //Log(LOG_I, @"renderFrame %d @ pts %f", frame.frameNumber, targetTimestamp);
+    //Log(LOG_I, @"renderFrame %d @ pts %.3f", frame.frameNumber, targetTimestamp);
 
     [self->displayLayer enqueueSampleBuffer:frame.sampleBuffer];
 

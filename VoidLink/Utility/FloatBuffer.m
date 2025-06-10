@@ -165,4 +165,34 @@
     return _count;
 }
 
+// Debug output for use with %@
+- (NSString *)description {
+    __block NSString *desc;
+    dispatch_sync(_sq, ^{
+        int tail = (_head + _capacity - _count) & (_capacity - 1);
+
+        NSMutableString *values = [NSMutableString stringWithString:@"["];
+        for (int i = 0; i < _count; i++) {
+            float v = _buffer[(tail + i) & (_capacity - 1)];
+            [values appendFormat:@"%0.3f", v];
+            if (i < _count - 1) [values appendString:@", "];
+        }
+        [values appendString:@"]"];
+
+        float avg = (_count > 0) ? (float)(_sum / _count) : 0.0f;
+
+        desc = [NSString stringWithFormat:@"<%@: %p; capacity=%d; count=%d; min=%0.3f; max=%0.3f; avg=%0.3f; sum=%0.3f, values=%@>",
+                NSStringFromClass([self class]),
+                self,
+                _capacity,
+                _count,
+                _minValue,
+                _maxValue,
+                avg,
+                _sum,
+                values];
+    });
+    return desc;
+}
+
 @end
