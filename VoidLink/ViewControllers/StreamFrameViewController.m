@@ -226,8 +226,16 @@
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
 
+    // frame queue size needs to be passed into the ImGui view so it can be adjusted on the fly
+    // TODO: from settings
+    int frameDropTarget = 1; // dumb heuristic: 60fps = 1, >60fps = 2
+    if (self.streamConfig.frameRate > 60) {
+        frameDropTarget = 2;
+    }
+
     // Make a MetalKit view for ImGui
     self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds];
+    self.imguiView.desiredQueueSize = frameDropTarget;
     [self.view addSubview:self.imguiView.mtkView];
     [self.view bringSubviewToFront:self.imguiView.mtkView];
 }

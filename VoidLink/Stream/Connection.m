@@ -435,6 +435,7 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
 
     // Check for low power mode which limits framerate to 60
     if (config.frameRate > 60 && [[NSProcessInfo processInfo] isLowPowerModeEnabled]) {
+        Log(LOG_W, @"Limiting stream to 60fps because device is in low power mode");
         config.frameRate = 60;
     }
 

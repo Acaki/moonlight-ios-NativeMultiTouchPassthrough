@@ -32,6 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Adds a new float into the buffer (overwriting the oldest if full). Thread-safe.
 - (void)addValue:(float)value;
 
+/// Most recent value
+- (float)newestValue;
+
 /// Copies the buffer’s contents (oldest→newest) into `outBuffer`, which must be able to hold at least `self.count` floats.
 /// Returns the number of floats written (i.e. the current `count`).
 /// If non-NULL, `outMin` and `outMax` are set to the buffer’s current minimum/maximum.

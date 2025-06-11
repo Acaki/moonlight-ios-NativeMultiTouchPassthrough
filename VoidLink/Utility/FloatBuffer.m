@@ -124,6 +124,14 @@
     return result;
 }
 
+- (float)newestValue {
+    __block float result;
+    dispatch_sync(_sq, ^{
+      result = (self->_count > 0) ? _buffer[_head] : 0.0f;
+    });
+    return result;
+}
+
 - (int)copyValuesIntoBuffer:(float *)outBuffer min:(nullable float *)outMin max:(nullable float *)outMax {
     __block int result;
     dispatch_sync(_sq, ^{

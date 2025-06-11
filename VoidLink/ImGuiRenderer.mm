@@ -25,7 +25,8 @@
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     //ImPlot::CreateContext();
-    (void)ImGui::GetIO();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
     ImGui::StyleColorsDark();
 
@@ -42,6 +43,14 @@
         .unit   = "ms",
         .scaleTarget = 1000.0 / self.mtkView.preferredFramesPerSecond,
         .buffer = [[FloatBuffer alloc] initWithCapacity:512] // 4.3s @ 120hz
+    };
+
+    _plots[PLOT_QUEUED_FRAMES] = {
+        .title       = "Frame queue min/max/now",
+        .labelType   = PLOT_LABEL_MIN_MAX_NOW_INT,
+        .unit        = "",
+        .scaleTarget = 2,
+        .buffer      = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
     _plots[PLOT_DRIFT] = {
@@ -63,17 +72,18 @@
         .title     = "Decode time",
         .labelType = PLOT_LABEL_MIN_MAX_AVG,
         .unit      = "ms",
-        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
+        .buffer    = [[FloatBuffer alloc] initWithCapacity:512],
+        .hidden    = YES
     };
 
     _plots[PLOT_DROPPED] = {
         .title     = "Frames dropped for pacing",
-        .labelType = PLOT_LABEL_TOTAL,
+        .labelType = PLOT_LABEL_TOTAL_INT,
         .unit      = "",
         .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
-    _desiredQueueSize = 1;
+    _desiredQueueSize = 1; // changed by StreamFrameViewController from app settings
 
     return self;
 }
@@ -176,14 +186,16 @@
 // multitouch correctly at all. This causes the "cursor" to behave very erratically
 // when there are multiple active touches. But for demo purposes, single-touch
 // interaction actually works surprisingly well.
--(void)updateIOWithTouchEvent:(UIEvent *)event
-{
 #if !defined(IMGUI_DISABLE)
+-(BOOL)updateIOWithTouchEvent:(UIEvent *)event
+{
     UITouch *anyTouch = event.allTouches.anyObject;
     CGPoint touchLocation = [anyTouch locationInView:self.view];
     ImGuiIO &io = ImGui::GetIO();
     io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
     io.AddMousePosEvent(touchLocation.x, touchLocation.y);
+
+    if (!io.WantCaptureMouse) return NO;
 
     BOOL hasActiveTouch = NO;
     for (UITouch *touch in event.allTouches)
@@ -195,14 +207,34 @@
         }
     }
     io.AddMouseButtonEvent(0, hasActiveTouch);
-#endif
+    return YES;
 }
+#endif
 
 #if !defined(IMGUI_DISABLE)
--(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
--(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
--(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event  { [self updateIOWithTouchEvent:event]; }
--(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
+-(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (![self updateIOWithTouchEvent:event]) {
+        [super touchesBegan:touches withEvent:event];
+    }
+}
+
+-(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (![self updateIOWithTouchEvent:event]) {
+        [super touchesMoved:touches withEvent:event];
+    }
+}
+
+-(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (![self updateIOWithTouchEvent:event]) {
+        [super touchesCancelled:touches withEvent:event];
+    }
+}
+
+-(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (![self updateIOWithTouchEvent:event]) {
+        [super touchesEnded:touches withEvent:event];
+    }
+}
 #endif
 
 /// Stats Graphs, we can still track data this way even with ImGui disabled
@@ -239,7 +271,8 @@ static void HelpMarker(const char* desc)
     const int graphs = PlotCount;
 
     // we malloc a buffer for frametimes once and reuse it
-    static float * buffers[5] = {
+    static float * buffers[6] = {
+        (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
@@ -252,20 +285,20 @@ static void HelpMarker(const char* desc)
     ImVec2 windowPos(io.DisplaySize.x - 10.0f, 10.0f);    // 10px margin
     ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(1.0f, 0.0f));  // pivot (1,0) = top-right
     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
-                             ImGuiWindowFlags_NoMove |
-                             ImGuiWindowFlags_NoNavFocus |
-                             ImGuiWindowFlags_NoBackground;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoBackground;
     ImGui::Begin("##Stats", nullptr, flags);
 
     // Figure out how tall each sub‐plot should be, with spacing
-    int modules = graphs + 2;
+    int modules = graphs + 1;
+
     float spacing = ImGui::GetStyle().ItemSpacing.y;
     ImVec2 avail  = ImGui::GetContentRegionAvail();
     float plotH   = (avail.y - (modules - 1) * spacing) / modules;
     float fullW   = avail.x;
 
     for (int i = 0; i < graphs; ++i) {
+        if (self.plots[i].hidden) continue;
+
         float minY, maxY;
         int countF = [self.plots[i].buffer copyValuesIntoBuffer:buffers[i] min:&minY max:&maxY];
         float avgF = [self.plots[i].buffer averageValue];
@@ -279,8 +312,11 @@ static void HelpMarker(const char* desc)
             case PLOT_LABEL_MIN_MAX_AVG:
                 sprintf(label, "%s  %.1f/%.1f/%.1f %s", self.plots[i].title, minY, maxY, avgF, self.plots[i].unit);
                 break;
-            case PLOT_LABEL_TOTAL:
-                sprintf(label, "%s  %.1f %s", self.plots[i].title, [self.plots[i].buffer total], self.plots[i].unit);
+            case PLOT_LABEL_MIN_MAX_NOW_INT:
+                sprintf(label, "%s  %d/%d/%d %s", self.plots[i].title, (int)minY, (int)maxY, (int)[self.plots[i].buffer newestValue], self.plots[i].unit);
+                break;
+            case PLOT_LABEL_TOTAL_INT:
+                sprintf(label, "%s  %d %s", self.plots[i].title, (int)[self.plots[i].buffer total], self.plots[i].unit);
                 break;
         }
         float scaleMin = FLT_MAX;
@@ -300,16 +336,16 @@ static void HelpMarker(const char* desc)
         self.desiredQueueSize = dqs;
     }
 
-    const char* items[] = { "Standard Frame Pacing", "PTS Frame Pacing" };
-    static int item_current = 0;
-    ImGui::Combo("Frame pacing method", &item_current, items, IM_ARRAYSIZE(items));
-    ImGui::SameLine(); HelpMarker(
-        "Standard Frame Pacing: This frame pacing method attempts to match the behavior of moonlight-qt's Pacer class. Incoming frames from "
-        "Sunshine are asynchronously processed into a queue by another thread. This method is called every vsync and aims "
-        "to present the most recent frame each vsync, while retaining a buffer of 1 frame. Frames may be dropped from the queue "
-        "if it grows too large, but the queue is allowed to grow as large as 3 frames if the stream framerate is slower than the display refresh rate. "
-        "The queue size can be adjusted using the slider.\n\n"
-        "PTS Frame Pacing: This experimental frame pacing method uses timestamps from Sunshine to pace frames.");
+//    const char* items[] = { "Standard Frame Pacing", "PTS Frame Pacing" };
+//    static int item_current = 0;
+//    ImGui::Combo("Frame pacing method", &item_current, items, IM_ARRAYSIZE(items));
+//    ImGui::SameLine(); HelpMarker(
+//        "Standard Frame Pacing: This frame pacing method attempts to match the behavior of moonlight-qt's Pacer class. Incoming frames from "
+//        "Sunshine are asynchronously processed into a queue by another thread. This method is called every vsync and aims "
+//        "to present the most recent frame each vsync, while retaining a buffer of 1 frame. Frames may be dropped from the queue "
+//        "if it grows too large, but the queue is allowed to grow as large as 3 frames if the stream framerate is slower than the display refresh rate. "
+//        "The queue size can be adjusted using the slider.\n\n"
+//        "PTS Frame Pacing: This experimental frame pacing method uses timestamps from Sunshine to pace frames.");
 
     ImGui::End();
 }

@@ -7,6 +7,7 @@
 //
 
 #import "RelativeTouchHandler.h"
+#import "Logger.h"
 
 #include <Limelight.h>
 
@@ -61,6 +62,7 @@ static const int REFERENCE_HEIGHT = 720;
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
     touchMoved = false;
     peakTouchCount = [[event allTouches] count];
+    Log(LOG_D, @"touchesBegan peakTouchCount=%d RelativeTouchHandler", peakTouchCount);
     if ([[event allTouches] count] == 1) {
         UITouch *touch = [[event allTouches] anyObject];
         originalLocation = touchLocation = [touch locationInView:view];

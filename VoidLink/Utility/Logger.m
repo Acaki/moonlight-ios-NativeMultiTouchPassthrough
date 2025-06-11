@@ -8,7 +8,11 @@
 
 #import "Logger.h"
 
+#if defined(NDEBUG)
 static LogLevel LoggerLogLevel = LOG_I;
+#else
+static LogLevel LoggerLogLevel = LOG_D;
+#endif
 
 void LogTagv(LogLevel level, NSString* tag, NSString* fmt, va_list args);
 

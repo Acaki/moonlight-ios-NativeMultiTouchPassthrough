@@ -14,10 +14,16 @@
         _frameNumber  = frameNumber;
         _frameType    = frameType;
         _sampleBuffer = sampleBuffer;
-        _pts = CMTimeGetSeconds(CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer));
+
+        // 90 kHz pts from RTP
+        _pts90        = CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer);
         //Log(LOG_I, @"[%d / %f] Frame init", _frameNumber, _pts);
     }
     return self;
+}
+
+- (CFTimeInterval)pts {
+    return CMTimeGetSeconds(_pts90);
 }
 
 - (void)dealloc {
@@ -101,6 +107,30 @@
     }
     os_unfair_lock_unlock(&_lock);
     return selected;
+}
+
+- (Frame *)dequeueAtIndex:(NSUInteger)index {
+    os_unfair_lock_lock(&_lock);
+    Frame *selected = nil;
+    if (_queue.count > index) {
+        selected = [_queue objectAtIndex:index];
+        [_queue removeObjectAtIndex:index];
+#ifdef FRAME_QUEUE_VERBOSE
+        Log(LOG_I, @"[<- %d / %f] dequeueAtIndex:%d, queue size %d", selected.frameNumber, selected.pts, index, _queue.count);
+#endif
+    }
+    os_unfair_lock_unlock(&_lock);
+    return selected;
+}
+
+- (int)peekFrameType {
+    int ret = -1;
+    os_unfair_lock_lock(&_lock);
+    if (_queue.count > 0) {
+        ret = _queue.firstObject.frameType;
+    }
+    os_unfair_lock_unlock(&_lock);
+    return ret;
 }
 
 - (Frame *)dequeueForPTS:(CFTimeInterval)pts {
