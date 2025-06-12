@@ -228,10 +228,7 @@
 
     // frame queue size needs to be passed into the ImGui view so it can be adjusted on the fly
     // TODO: from settings
-    int frameDropTarget = 1; // dumb heuristic: 60fps = 1, >60fps = 2
-    if (self.streamConfig.frameRate > 60) {
-        frameDropTarget = 2;
-    }
+    int frameDropTarget = 2;
 
     // Make a MetalKit view for ImGui
     self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds];
