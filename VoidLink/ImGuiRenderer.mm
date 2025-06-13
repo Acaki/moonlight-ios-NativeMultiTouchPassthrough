@@ -13,7 +13,7 @@
 
 @implementation ImGuiRenderer
 
--(nonnull instancetype)initWithFrame:(CGRect)bounds;
+-(nonnull instancetype)initWithFrame:(CGRect)bounds streamFps:(int)streamFps;
 {
     self = [super init];
 
@@ -33,6 +33,8 @@
     ImGui_ImplMetal_Init(_device);
 #endif
 
+    _desiredQueueSize = 2; // changed by StreamFrameViewController from app settings
+
     // Graphs init
     _graphAreaHeight = 200.0f;
     const int graphs = PlotCount;
@@ -41,15 +43,25 @@
     _plots[PLOT_FRAMETIME] = {
         .title  = "Frametime",
         .unit   = "ms",
-        .scaleTarget = 1000.0 / self.mtkView.preferredFramesPerSecond,
-        .buffer = [[FloatBuffer alloc] initWithCapacity:512] // 4.3s @ 120hz
+        .scaleMin = (1000.0 / streamFps) - 1,
+        .scaleMax = 50.0f,
+        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
+    };
+
+    _plots[PLOT_HOST_FRAMETIME] = {
+        .title  = "Host Frametime",
+        .unit   = "ms",
+        .scaleMin = (1000.0 / streamFps) - 1,
+        .scaleMax = 50.0f,
+        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
     _plots[PLOT_QUEUED_FRAMES] = {
-        .title       = "Frame queue min/max/now",
-        .labelType   = PLOT_LABEL_MIN_MAX_NOW_INT,
+        .title       = "Frame queue",
+        .labelType   = PLOT_LABEL_MIN_MAX_AVG_INT,
         .unit        = "",
-        .scaleTarget = 2,
+        .scaleMin    = -0.5,
+        .scaleMax    = 15,
         .buffer      = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
@@ -80,10 +92,9 @@
         .title     = "Frames dropped for pacing",
         .labelType = PLOT_LABEL_TOTAL_INT,
         .unit      = "",
+        .scaleTarget = 2,
         .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
-
-    _desiredQueueSize = 1; // changed by StreamFrameViewController from app settings
 
     return self;
 }
@@ -195,8 +206,6 @@
     io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
     io.AddMousePosEvent(touchLocation.x, touchLocation.y);
 
-    if (!io.WantCaptureMouse) return NO;
-
     BOOL hasActiveTouch = NO;
     for (UITouch *touch in event.allTouches)
     {
@@ -212,29 +221,10 @@
 #endif
 
 #if !defined(IMGUI_DISABLE)
--(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if (![self updateIOWithTouchEvent:event]) {
-        [super touchesBegan:touches withEvent:event];
-    }
-}
-
--(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if (![self updateIOWithTouchEvent:event]) {
-        [super touchesMoved:touches withEvent:event];
-    }
-}
-
--(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if (![self updateIOWithTouchEvent:event]) {
-        [super touchesCancelled:touches withEvent:event];
-    }
-}
-
--(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if (![self updateIOWithTouchEvent:event]) {
-        [super touchesEnded:touches withEvent:event];
-    }
-}
+-(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
+-(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
+-(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event  { [self updateIOWithTouchEvent:event]; }
+-(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event      { [self updateIOWithTouchEvent:event]; }
 #endif
 
 /// Stats Graphs, we can still track data this way even with ImGui disabled
@@ -271,7 +261,8 @@ static void HelpMarker(const char* desc)
     const int graphs = PlotCount;
 
     // we malloc a buffer for frametimes once and reuse it
-    static float * buffers[6] = {
+    static float * buffers[7] = {
+        (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
@@ -281,22 +272,26 @@ static void HelpMarker(const char* desc)
     };
 
     ImGuiIO &io = ImGui::GetIO();
+
+    // Left side - 2 graphs
     ImVec2 windowSize(450.0f, _graphAreaHeight); // 450x100 works for iPad, other devices will need tweaks
-    ImVec2 windowPos(io.DisplaySize.x - 10.0f, 10.0f);    // 10px margin
-    ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(1.0f, 0.0f));  // pivot (1,0) = top-right
+    ImVec2 windowPos(10.0f, 10.0f);
+    ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(0.0f, 0.0f));  // pivot (0,0) = top-left
     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoBackground;
-    ImGui::Begin("##Stats", nullptr, flags);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+                             ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoNavFocus |
+                             ImGuiWindowFlags_NoBackground |
+                             ImGuiWindowFlags_NoSavedSettings;
+    ImGui::Begin("##StatsLeft", nullptr, flags);
 
-    // Figure out how tall each sub‐plot should be, with spacing
-    int modules = graphs + 1;
-
-    float spacing = ImGui::GetStyle().ItemSpacing.y;
+    // Dimensions of each graph
     ImVec2 avail  = ImGui::GetContentRegionAvail();
-    float plotH   = (avail.y - (modules - 1) * spacing) / modules;
-    float fullW   = avail.x;
+    float plotH = 45.0;
+    float fullW = avail.x;
 
-    for (int i = 0; i < graphs; ++i) {
+    // First 2 on left
+    for (int i = 0; i < 2; i++) {
         if (self.plots[i].hidden) continue;
 
         float minY, maxY;
@@ -312,8 +307,8 @@ static void HelpMarker(const char* desc)
             case PLOT_LABEL_MIN_MAX_AVG:
                 sprintf(label, "%s  %.1f/%.1f/%.1f %s", self.plots[i].title, minY, maxY, avgF, self.plots[i].unit);
                 break;
-            case PLOT_LABEL_MIN_MAX_NOW_INT:
-                sprintf(label, "%s  %d/%d/%d %s", self.plots[i].title, (int)minY, (int)maxY, (int)[self.plots[i].buffer newestValue], self.plots[i].unit);
+            case PLOT_LABEL_MIN_MAX_AVG_INT:
+                sprintf(label, "%s  %d/%d/%.1f %s", self.plots[i].title, (int)minY, (int)maxY, avgF, self.plots[i].unit);
                 break;
             case PLOT_LABEL_TOTAL_INT:
                 sprintf(label, "%s  %d %s", self.plots[i].title, (int)[self.plots[i].buffer total], self.plots[i].unit);
@@ -327,14 +322,82 @@ static void HelpMarker(const char* desc)
             scaleMin = ideal - (2 * ideal);
             scaleMax = ideal + (2 * ideal);
         }
+        if (self.plots[i].scaleMin)
+            scaleMin = self.plots[i].scaleMin;
+        if (self.plots[i].scaleMax)
+            scaleMax = self.plots[i].scaleMax;
+        ImGui::PushID(i);
+        //ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        //ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.90f, 0.70f, 0.00f, 1.00f)); // yellow
+        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // green
         ImGui::PlotLines("##xx", buffers[i], countF, 0, (countF > 0 ? label : "no data"), scaleMin, scaleMax, ImVec2(fullW, plotH));
+        ImGui::PopStyleColor(1);
+        ImGui::PopID();
     }
+    ImGui::End();
 
-    static int dqs = self.desiredQueueSize;
-    ImGui::SliderInt("Frame queue size", &dqs, 0, 10);
-    if (dqs != self.desiredQueueSize) {
-        self.desiredQueueSize = dqs;
+    // Right side - 2 graphs
+    windowPos = ImVec2(io.DisplaySize.x - 10.0f, 10.0f);    // 10px margin
+    ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(1.0f, 0.0f));  // pivot (1,0) = top-right
+    ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+    flags = ImGuiWindowFlags_NoDecoration |
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoNavFocus |
+            ImGuiWindowFlags_NoBackground |
+            ImGuiWindowFlags_NoSavedSettings;
+    ImGui::Begin("##StatsRight", nullptr, flags);
+
+    // 2+ on right
+    for (int i = 2; i < graphs; i++) {
+        if (self.plots[i].hidden) continue;
+
+        float minY, maxY;
+        int countF = [self.plots[i].buffer copyValuesIntoBuffer:buffers[i] min:&minY max:&maxY];
+        float avgF = [self.plots[i].buffer averageValue];
+        if (!countF) {
+            continue;
+        }
+
+        // Ugly, but can't get ImPlot to build for iOS
+        char label[64];
+        switch (self.plots[i].labelType) {
+            case PLOT_LABEL_MIN_MAX_AVG:
+                sprintf(label, "%s  %.1f/%.1f/%.1f %s", self.plots[i].title, minY, maxY, avgF, self.plots[i].unit);
+                break;
+            case PLOT_LABEL_MIN_MAX_AVG_INT:
+                sprintf(label, "%s  %d/%d/%.1f %s", self.plots[i].title, (int)minY, (int)maxY, avgF, self.plots[i].unit);
+                break;
+            case PLOT_LABEL_TOTAL_INT:
+                sprintf(label, "%s  %d %s", self.plots[i].title, (int)[self.plots[i].buffer total], self.plots[i].unit);
+                break;
+        }
+        float scaleMin = FLT_MAX;
+        float scaleMax = FLT_MAX;
+        if (self.plots[i].scaleTarget) {
+            // optionally center the graph on a target such as the ideal frametime
+            float ideal = (float)self.plots[i].scaleTarget;
+            scaleMin = ideal - (2 * ideal);
+            scaleMax = ideal + (2 * ideal);
+        }
+        if (self.plots[i].scaleMin)
+            scaleMin = self.plots[i].scaleMin;
+        if (self.plots[i].scaleMax)
+            scaleMax = self.plots[i].scaleMax;
+        ImGui::PushID(i);
+        //ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        //ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.90f, 0.70f, 0.00f, 1.00f)); // yellow
+        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // green
+        ImGui::PlotLines("##xx", buffers[i], countF, 0, (countF > 0 ? label : "no data"), scaleMin, scaleMax, ImVec2(fullW, plotH));
+        ImGui::PopStyleColor(1);
+        ImGui::PopID();
     }
+    ImGui::End();
+
+//    static int dqs = self.desiredQueueSize;
+//    ImGui::SliderInt("Frame queue size", &dqs, 0, 10);
+//    if (dqs != self.desiredQueueSize) {
+//        self.desiredQueueSize = dqs;
+//    }
 
 //    const char* items[] = { "Standard Frame Pacing", "PTS Frame Pacing" };
 //    static int item_current = 0;
@@ -347,7 +410,6 @@ static void HelpMarker(const char* desc)
 //        "The queue size can be adjusted using the slider.\n\n"
 //        "PTS Frame Pacing: This experimental frame pacing method uses timestamps from Sunshine to pace frames.");
 
-    ImGui::End();
 }
 #endif
 

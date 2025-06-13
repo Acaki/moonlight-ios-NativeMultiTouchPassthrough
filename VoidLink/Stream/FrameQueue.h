@@ -20,13 +20,18 @@
 @property (nonatomic) int desiredQueueSize;
 @property (nonatomic) dispatch_semaphore_t semaphore;
 
+typedef enum {
+    DROP_ALTERNATING,
+    DROP_ALL
+} FrameQueueDropMode;
+
 - (void)enqueue:(Frame *)frame;
 - (int)peekFrameType;
 - (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout;
 - (Frame *)dequeue;
 - (Frame *)dequeueAtIndex:(NSUInteger)index;
-- (Frame *)dequeueForPTS:(CFTimeInterval)targetPTS;
-- (Frame *)dequeueForQueueSize:(int)desiredQueueSize;
+- (int)dropWithTarget:(int)frameDropTarget
+             dropMode:(FrameQueueDropMode)dropMode;
 - (NSUInteger)count;
 - (void)clear;
 

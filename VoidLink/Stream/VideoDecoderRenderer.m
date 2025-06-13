@@ -21,8 +21,10 @@
 #include <libavutil/mem.h>
 #include <mach/mach_time.h>
 
-#define DISPLAYLINK_VERBOSE
+#if !defined(NDEBUG)
 // Define for extra logging related to frame pacing
+//#define DISPLAYLINK_VERBOSE
+#endif
 
 // Private libavformat API for writing the AV1 Codec Configuration Box
 extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
@@ -122,8 +124,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     self->videoFormat = videoFormat;
     self->frameRate = frameRate;
 
-    //_displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingQueue:)];
-    _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingTimestamps:)];
+    _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingQueue:)];
+    //_displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingTimestamps:)];
 
     if (@available(iOS 15.0, tvOS 15.0, *)) {
         _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
@@ -147,24 +149,35 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 }
 
+- (void) checkDisplayLayer {
+    // Check for issues with the SampleBuffer, this should be much less likely since
+    // AVSB is not actually decoding the frames anymore
+    if (self->displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+        Log(LOG_E, @"Display layer rendering failed: %@", displayLayer.error);
+
+        // Recreate the display layer. We are already on the main thread,
+        // so this is safe to do right here.
+        [self reinitializeDisplayLayer];
+
+        // Request an IDR frame to initialize the new decoder
+        LiRequestIdrFrame();
+    }
+}
+
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
 // This frame pacing method attempts to match the behavior of moonlight-qt's Pacer class. Incoming frames from
 // Sunshine are asynchronously processed into a queue by another thread. This method is called every vsync and aims
-// to present the most recent frame each vsync, while retaining a buffer of 1 frame. Frames may be dropped from the queue
+// to present the most recent frame each vsync, while retaining a buffer of 1-2 frames. Frames may be dropped from the queue
 // if it grows too large, but the queue is allowed to grow as large as 3 frames if the stream framerate is slower
-// than the display refresh rate. The user may adjust the 1 frame buffer size using ImGui.
-//
-// Pseudocode:
-// frameDropTarget = 1
-// Start displayLink, interval matching stream framerate
-
-//   take pending frame or wait for a frame for (deadline - 3ms or avg render time)
-//   render frame before vblank
+// than the display refresh rate.
 - (void)framePacingUsingQueue:(CADisplayLink *)link {
     CFTimeInterval deadline = link.targetTimestamp;
     _displayRefreshRate = 1.0f / link.duration;
     static CFTimeInterval lastTargetLocal = 0.0f;
+    static CFTimeInterval lastFramePts = 0.0f;
+
+    [self checkDisplayLayer];
 
     // Only query the queue count once to reduce locking overhead
     NSUInteger queuedFrames = [frameQueue count];
@@ -181,52 +194,43 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
     Frame *frame = nil;
 
-    // graph the queue size
-    [self->_callbacks observeFloatReturnAvg:PLOT_QUEUED_FRAMES value:queuedFrames];
-
-    // Catch up if the queue is too large, but drop every other frame instead of multiple consecutive frames
-    int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 1, but allow user control using ImGui slider
-    int framesToDrop = (int)queuedFrames - frameDropTarget;
-    int framesDropped = 0;
-    if (framesToDrop > 0) {
-        for (int i = 0; i < framesToDrop; i++) {
-            // Never drop IDR frames
-            if ([frameQueue peekFrameType] == FRAME_TYPE_IDR) {
-                break;
-            }
-
-            if ((i & 1) == 0) {
-                // drop every even-indexed frame. It is ok to drop any frame in the queue
-                // because it has already been decoded in order.
-                frame = [frameQueue dequeueAtIndex:i];
-                if (frame != nil) {
-                    Log(LOG_D, @"[%.3f] queue size %d, dropped frame %d for pacing",
-                        deadline, queuedFrames, frame.frameNumber);
-                    framesDropped++; // TODO: pass to stats
-                    queuedFrames--;
-                }
-            }
-        }
-    }
+    // Do we need to drop any frames?
+    int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 2
+    int framesDropped = [frameQueue dropWithTarget:frameDropTarget dropMode:DROP_ALTERNATING];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
     // Get the next frame or wait if necessary. Aim to present the frame 3ms before deadline to allow
     // time for processing. If no frame arrives the previous one will be redisplayed automatically.
-    frame = [frameQueue dequeueWithTimeout:(deadline - 0.003f - CACurrentMediaTime())];
+    frame = [frameQueue dequeueWithTimeout:(deadline - CACurrentMediaTime() - 0.002f)];
     if (frame != nil) {
-        [self renderFrame:frame atTime:frame.pts90];
+        queuedFrames = [frameQueue count];
 
-        CFTimeInterval drift = frame.pts - deadline;
-        Log(LOG_D, @"[%.3f] rendering frame %d / %.3f, queue size %d",
-            deadline, frame.frameNumber, frame.pts,
-            queuedFrames);
+        // Option 1. timestamp the frame using now(), this results in very jittery frametime
+        // graph, but frames are still output basically the same as targeting deadline
+        // CFTimeInterval targetLocal = CACurrentMediaTime();
+        // [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
+
+        // Option 2, snap exactly to deadline, even though it won't really be displayed until deadline * 2
+        CFTimeInterval targetLocal = deadline;
+        [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
+
+#ifdef DISPLAYLINK_VERBOSE
+        Log(LOG_I, @"[%.3f] rendering frame %d @ %.3f, queue size %d",
+            deadline, frame.frameNumber, targetLocal, queuedFrames);
+#endif
 
         // Update metrics
-        CFTimeInterval targetLocal = frame.pts; // XXX is this right?
         if (lastTargetLocal != 0) {
             [self->_callbacks observeFloat:PLOT_FRAMETIME value:(targetLocal - lastTargetLocal) * 1000.0];
         }
         lastTargetLocal = targetLocal;
+
+        if (lastFramePts != 0) {
+            [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastFramePts) * 1000.0];
+        }
+        lastFramePts = frame.pts;
+
+        [self->_callbacks observeFloat:PLOT_QUEUED_FRAMES value:queuedFrames];
     }
 }
 
@@ -234,25 +238,17 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 // frames should be displayed. Sunshine v2025.600+ required.
 - (void)framePacingUsingTimestamps:(CADisplayLink *)link {
     // All times are in seconds
-    static BOOL setAnchor = NO;
     static CFTimeInterval anchorLocal = 0.0f;
-    static CFTimeInterval anchorHost = 0.0f;
+    static CMTime anchorHost;
     static CFTimeInterval lastTargetLocal = 0.0f;
     static CFTimeInterval lastStart = 0.0f;
-
-    // |------------------<-current frame->-------------------|
-    // |--------|---------------------------------------------|
-    // start   nowStart                                    deadline
+    static CFTimeInterval lastFramePts = 0.0f;
 
     CFTimeInterval start = link.timestamp;
     CFTimeInterval deadline = link.targetTimestamp;
     _displayRefreshRate = 1.0f / (deadline - start);
 
-    // Inform the frameQueue of our desired queue size, which can be changed on the fly via ImGui
-    int desiredQueueSize = [self->_callbacks getDesiredQueueSize];
-    [frameQueue setDesiredQueueSize:desiredQueueSize];
-
-    CFTimeInterval now = CACurrentMediaTime();
+    [self checkDisplayLayer];
 
     // Only query the queue count once to reduce locking overhead
     Frame *frame = nil;
@@ -270,76 +266,68 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         // Just let frame 1 through, we don't want to anchor to it
         frame = [frameQueue dequeue];
         if (frame != nil) {
+            Log(LOG_I, @"[%.3f] rendering frame %d / %.3f, queue size %d",
+                deadline, frame.frameNumber, frame.pts, queuedFrames);
             [self renderFrame:frame atTime:frame.pts90];
             return;
         }
     }
 
-    // graph the queue size
-    [self->_callbacks observeFloatReturnAvg:PLOT_QUEUED_FRAMES value:queuedFrames];
-
-    // Catch up if the queue is too large, but drop every other frame instead of multiple consecutive frames
-    int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 1, but allow user control using ImGui slider
-    int framesToDrop = (int)queuedFrames - frameDropTarget;
-    int framesDropped = 0;
-    if (framesToDrop > 0) {
-        for (int i = 0; i < framesToDrop; i++) {
-            // Never drop IDR frames
-            if ([frameQueue peekFrameType] == FRAME_TYPE_IDR) {
-                break;
-            }
-
-            if ((i & 1) == 0) {
-                // drop every even-indexed frame. It is ok to drop any frame in the queue
-                // because it has already been decoded in order.
-                frame = [frameQueue dequeueAtIndex:i];
-                if (frame != nil) {
-                    Log(LOG_D, @"[%.3f] queue size %d, dropped frame %d for pacing",
-                        deadline - anchorLocal, queuedFrames, frame.frameNumber);
-                    framesDropped++; // TODO: pass to stats
-                    queuedFrames--;
-                }
-            }
-        }
-    }
+    // Do we need to drop any frames?
+    int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 2, but allow user control using ImGui slider
+    int framesDropped = [frameQueue dropWithTarget:frameDropTarget dropMode:DROP_ALTERNATING];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
-    // Process the actual frame for display
-    frame = [frameQueue dequeueWithTimeout:(deadline - CACurrentMediaTime())];
+    // Process the next frame for display
+    frame = [frameQueue dequeueWithTimeout:(deadline - CACurrentMediaTime() - 0.002f)];
     if (frame != nil) {
-        if (!setAnchor) {
-            // Use this frame as the anchor point. This is normally frame 2.
-            anchorHost = frame.pts;
-            anchorLocal = now;
-            setAnchor = YES;
-            Log(LOG_D, @"Setting anchor point: anchorHost=%f == anchorLocal=%f", anchorHost, anchorLocal);
-        }
-        CFTimeInterval targetLocal = frame.pts;
-        CFTimeInterval drift = (frame.pts - anchorHost) - (deadline - anchorLocal);
+        queuedFrames = [frameQueue count];
 
+        CFTimeInterval now = CACurrentMediaTime();
+
+        if (!CMTIME_IS_VALID(anchorHost)) {
+            // Use this frame as the anchor point. This is normally frame 2.
+            anchorHost = frame.pts90;
+            anchorLocal = now;
+            Log(LOG_I, @"Setting anchor point: anchorHost=%.3f == anchorLocal=%.3f",
+                CMTimeGetSeconds(anchorHost), anchorLocal);
+        }
+
+#ifdef DISPLAYLINK_VERBOSE
         // iOS double-buffering renders the frame we queue here during the interval +2 from now
-        Log(LOG_D, @"[%.3f] [%.3f] rendering frame %d / %.3f, drift %.3f, queue size %d",
-            deadline - anchorLocal, deadline - anchorLocal + link.duration,
-            frame.frameNumber, frame.pts - anchorHost,
-            drift, queuedFrames);
+        CMTime hostDelta = CMTimeSubtract(frame.pts90, anchorHost);
+        CFTimeInterval hostDeltaF = CMTimeGetSeconds(hostDelta);
+        CMTime drift = CMTimeSubtract(hostDelta, CMTimeMakeWithSeconds(now - anchorLocal, NSEC_PER_SEC));
+        Log(LOG_I, @"[%.3f] rendering frame %d / %.3f, drift %.3f, queue size/target %d/%d",
+            deadline - anchorLocal, frame.frameNumber, hostDeltaF,
+            CMTimeGetSeconds(drift), queuedFrames, frameDropTarget);
+#endif
 
         [self renderFrame:frame atTime:frame.pts90];
 
         // Update metrics
+        CFTimeInterval targetLocal = frame.pts;
         if (lastTargetLocal != 0) {
             [self->_callbacks observeFloat:PLOT_FRAMETIME value:(targetLocal - lastTargetLocal) * 1000.0];
         }
         lastTargetLocal = targetLocal;
+
+        if (lastFramePts != 0) {
+            [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastFramePts) * 1000.0];
+        }
+        lastFramePts = frame.pts;
+
+        [self->_callbacks observeFloat:PLOT_QUEUED_FRAMES value:queuedFrames];
     }
 
     // TODO: handle presentationTimeUs rollover every 13 hours
     
-    // Graph the displayLink callback interval, it should be perfectly flat unless the system is
-    // overloaded in some way
-    if (lastStart != 0.0) {
-        [self->_callbacks observeFloat:PLOT_DISPLAYLINK value:(start - lastStart) * 1000.0];
-    }
-    lastStart = start;
+//    // Graph the displayLink callback interval, it should be perfectly flat unless the system is
+//    // overloaded in some way
+//    if (lastStart != 0.0) {
+//        [self->_callbacks observeFloat:PLOT_DISPLAYLINK value:(start - lastStart) * 1000.0];
+//    }
+//    lastStart = start;
 }
 
 - (void)renderFrame:(Frame *)frame atTime:(CMTime)targetTime {
@@ -356,8 +344,16 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         CMTimebaseSetRate(timebase, 1.0);
 
         [self->displayLayer setControlTimebase:timebase];
+        Log(LOG_I, @"Setting timebase for stream to %@", timebase);
+    }
 
-        Log(LOG_D, @"Set timebase for stream to %@", timebase);
+    // set the immediate flag if timebase is using mach time (from queue-based displaylink)
+    if (targetTime.timescale == NSEC_PER_SEC) {
+        CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(frame.sampleBuffer, true);
+        if (attachments) {
+            CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+            CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+        }
     }
 
     [self->displayLayer enqueueSampleBuffer:frame.sampleBuffer];
@@ -757,19 +753,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         return DR_NEED_IDR;
     }
 
-//    // Check for previous decoder errors before doing anything
-//    if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-//        Log(LOG_E, @"Display layer rendering failed: %@", displayLayer.error);
-//
-//        // Recreate the display layer. We are already on the main thread,
-//        // so this is safe to do right here.
-//        [self reinitializeDisplayLayer];
-//
-//        // Request an IDR frame to initialize the new decoder
-//        free(data);
-//        return DR_NEED_IDR;
-//    }
-
     // Now we're decoding actual frame data here
     CMBlockBufferRef frameBlockBuffer;
     CMBlockBufferRef dataBlockBuffer;
@@ -820,7 +803,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         }
     }
 
-    // Set pts to the current frame's pts. We also need to support
+    // Set pts to the current frame's pts, in RTP 90khz units
     CMSampleTimingInfo sampleTiming = {
         .duration              = kCMTimeInvalid,
         .presentationTimeStamp = CMTimeMake((int64_t)du->rtpTimestamp, 90000),
@@ -866,9 +849,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         [self setupDecompressionSession];
     }
 
-    OSStatus status;
-    VTDecodeFrameFlags flags = kVTDecodeFrame_EnableAsynchronousDecompression | kVTDecodeFrame_1xRealTimePlayback;
-    status = VTDecompressionSessionDecodeFrameWithOutputHandler(
+    // Since we are only decoding 1 frame at a time, async may be pointless here.
+    // 1xRealTime allows the decoder to run in a lower-power mode as long as it keeps up.
+    VTDecodeFrameFlags flags = kVTDecodeFrame_EnableAsynchronousDecompression |
+                               kVTDecodeFrame_1xRealTimePlayback;
+
+    OSStatus status = VTDecompressionSessionDecodeFrameWithOutputHandler(
         decompressionSession, sampleBuffer, flags, NULL,
         ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
           if (status != noErr) {

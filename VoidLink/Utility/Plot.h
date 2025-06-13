@@ -2,6 +2,7 @@
 
 typedef enum {
     PLOT_FRAMETIME = 0,
+    PLOT_HOST_FRAMETIME,
     PLOT_QUEUED_FRAMES,
     PLOT_DRIFT,
     PLOT_DISPLAYLINK,
@@ -12,7 +13,7 @@ typedef enum {
 
 typedef enum {
     PLOT_LABEL_MIN_MAX_AVG = 0,
-    PLOT_LABEL_MIN_MAX_NOW_INT,
+    PLOT_LABEL_MIN_MAX_AVG_INT,
     PLOT_LABEL_TOTAL_INT
 } PlotLabelType;
 
@@ -21,7 +22,7 @@ struct PlotDef {
     const char * _Nonnull title;
     PlotLabelType labelType;
     const char * _Nonnull unit;
-    double scaleTarget;
+    double scaleMin, scaleMax, scaleTarget;
     float minY;
     float maxY;
     BOOL hidden;

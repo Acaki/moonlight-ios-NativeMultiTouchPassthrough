@@ -7,6 +7,8 @@
 //# define FRAME_QUEUE_VERBOSE
 #endif
 
+#pragma mark Frame
+
 @implementation Frame
 
 - (instancetype)initWithSampleBuffer:(CMSampleBufferRef)sampleBuffer frameNumber:(int)frameNumber frameType:(int)frameType {
@@ -17,7 +19,10 @@
 
         // 90 kHz pts from RTP
         _pts90        = CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer);
-        //Log(LOG_I, @"[%d / %f] Frame init", _frameNumber, _pts);
+
+#ifdef FRAME_QUEUE_VERBOSE
+        Log(LOG_D, @"[%d / %f] Frame init, pts90 %d", _frameNumber, CMTimeGetSeconds(_pts90), _pts90.value);
+#endif
     }
     return self;
 }
@@ -27,9 +32,11 @@
 }
 
 - (void)dealloc {
-    //Log(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, _pts);
+#ifdef FRAME_QUEUE_VERBOSE
+    Log(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, CMTimeGetSeconds(_pts90));
+#endif
     // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
-    // so we don't need to CFRetain in init
+    // so we don't need to CFRetain in init, but do need to release it
     CFRelease(_sampleBuffer);
 }
 
@@ -41,7 +48,7 @@
 
 @end
 
-////
+#pragma mark FrameQueue
 
 @implementation FrameQueue {
     NSMutableArray<Frame *> *_queue;
@@ -51,7 +58,7 @@
 - (instancetype)init {
     if (self = [super init]) {
         _maxCapacity = 15;
-        _desiredQueueSize = 1;
+        _desiredQueueSize = 2;
         _queue = [NSMutableArray arrayWithCapacity:_maxCapacity];
         _lock = OS_UNFAIR_LOCK_INIT;
         // start with count = 0, so waits will block
@@ -63,11 +70,16 @@
 - (void)enqueue:(Frame *)frame {
     os_unfair_lock_lock(&_lock);
     if (_queue.count >= _maxCapacity) {
-        // Drop oldest
-#ifdef FRAME_QUEUE_VERBOSE
-        Log(LOG_I, @"[x %d] queue full, dropping oldest", _queue.firstObject.frameNumber);
-#endif
-        [_queue removeObjectAtIndex:0];
+        // Emergency drop everything past 2, except IDR frames
+        NSMutableIndexSet *toDrop = [[NSMutableIndexSet alloc] init];
+        for (int i = 2; i < _queue.count; i++) {
+            if ([_queue objectAtIndex:i].frameType != FRAME_TYPE_IDR) {
+                [toDrop addIndex:i];
+            }
+        }
+        [_queue removeObjectsAtIndexes:toDrop];
+        Log(LOG_E, @"Error: Frame queue overflow (max %d), dropped %d frames",
+            _maxCapacity, [toDrop count]);
     }
     [_queue addObject:frame];
 #ifdef FRAME_QUEUE_VERBOSE
@@ -87,7 +99,7 @@
     if (dispatch_semaphore_wait(self.semaphore, when) != 0) {
         // timed out
 #ifdef FRAME_QUEUE_VERBOSE
-        Log(LOG_I, @"[-] dequeue timed out after %f", timeout);
+        Log(LOG_I, @"[-] dequeueWithTimeout timed out after %.3f ms", timeout * 1000.0);
 #endif
         return nil;
     }
@@ -133,43 +145,49 @@
     return ret;
 }
 
-- (Frame *)dequeueForPTS:(CFTimeInterval)pts {
+// Catch up if the queue is too large, but drop every other frame instead of multiple consecutive frames
+- (int)dropWithTarget:(int)frameDropTarget
+             dropMode:(FrameQueueDropMode)dropMode {
     os_unfair_lock_lock(&_lock);
-    Frame *selected = nil;
-    while (_queue.count > _desiredQueueSize) {
-        Frame *first = _queue.firstObject;
-        if (first.pts <= pts) {
-            selected = first;
-            [_queue removeObjectAtIndex:0];
-        } else {
-            break; // The next frame is in the future
-        }
-    }
-#ifdef FRAME_QUEUE_VERBOSE
-    if (selected != nil) {
-        Log(LOG_I, @"[<- %d / %f] dequeueForPTS:%f, queue size %d: %@",
-            selected.frameNumber, selected.pts, pts, _queue.count, self);
-    }
-#endif
-    os_unfair_lock_unlock(&_lock);
-    return selected;
-}
+    int framesToDrop = (int)_queue.count - frameDropTarget;
+    bool shouldDrop = YES;
+    int dropCount = 0;
+    NSMutableIndexSet *toDrop = [[NSMutableIndexSet alloc] init];
 
-- (Frame *)dequeueForQueueSize:(int)desiredQueueSize {
-    os_unfair_lock_lock(&_lock);
-    Frame *selected = nil;
-    while (_queue.count > desiredQueueSize) {
-        selected = _queue.firstObject;
-        [_queue removeObjectAtIndex:0];
-    }
+    if (framesToDrop > 0) {
+        for (int i = 0; i < framesToDrop; i++) {
+            // Never drop IDR frames
+            if ([_queue objectAtIndex:i].frameType == FRAME_TYPE_IDR)
+                break;
+
+            if (dropMode == DROP_ALTERNATING && !shouldDrop) {
+                // spare this frame but drop the next
+                shouldDrop = YES;
+                continue;
+            }
+
+            // Drop the frame, either because of DROP_ALL or shouldDrop.
+            // It is ok to drop any non-IDR frame in the queue because
+            // the decoder has already decoded it.
+            [toDrop addIndex:i];
+
 #ifdef FRAME_QUEUE_VERBOSE
-    if (selected != nil) {
-        Log(LOG_I, @"[<- %d / %f] dequeueForQueueSize:%d, queue size %d: %@",
-            selected.frameNumber, selected.pts, desiredQueueSize, _queue.count, self);
-    }
+            Frame *frame = [_queue objectAtIndex:i];
+            Log(LOG_I, @"[drop %d / %f] dropWithTarget:%d, drop mode:%@",
+                frame.frameNumber, frame.pts, frameDropTarget,
+                dropMode == DROP_ALL ? @"all" : @"alternating");
 #endif
+
+            if (dropMode == DROP_ALTERNATING) {
+                shouldDrop = NO;
+            }
+        }
+        [_queue removeObjectsAtIndexes:toDrop];
+        dropCount = (int)[toDrop count];
+    }
+
     os_unfair_lock_unlock(&_lock);
-    return selected;
+    return dropCount;
 }
 
 - (NSUInteger)count {

@@ -19,7 +19,7 @@
 @property (nonatomic) int desiredQueueSize;
 @property (nonatomic) float graphAreaHeight;
 
--(nonnull instancetype) initWithFrame:(CGRect)bounds;
+-(nonnull instancetype) initWithFrame:(CGRect)bounds streamFps:(int)streamFps;
 -(void) observeFloat:(int)plotId value:(CFTimeInterval)value;
 -(float) observeFloatReturnAvg:(int)plotId value:(CFTimeInterval)value;
 -(int) getDesiredQueueSize;

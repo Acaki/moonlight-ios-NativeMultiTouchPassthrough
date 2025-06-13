@@ -231,7 +231,7 @@
     int frameDropTarget = 2;
 
     // Make a MetalKit view for ImGui
-    self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds];
+    self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds streamFps:[_settings.framerate intValue]];
     self.imguiView.desiredQueueSize = frameDropTarget;
     [self.view addSubview:self.imguiView.mtkView];
     [self.view bringSubviewToFront:self.imguiView.mtkView];
