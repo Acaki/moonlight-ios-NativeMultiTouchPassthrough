@@ -44,7 +44,7 @@
         .title  = "Frametime",
         .unit   = "ms",
         .scaleMin = (1000.0 / streamFps) - 1,
-        .scaleMax = 50.0f,
+        .scaleMax = 50.0f, // (1000.0 / streamFps) * 3,
         .buffer = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
@@ -52,7 +52,7 @@
         .title  = "Host Frametime",
         .unit   = "ms",
         .scaleMin = (1000.0 / streamFps) - 1,
-        .scaleMax = 50.0f,
+        .scaleMax = 50.0f, // (1000.0 / streamFps) * 3,
         .buffer = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
@@ -257,6 +257,16 @@ static void HelpMarker(const char* desc)
     }
 }
 
+inline static float getValue(void *buffer, int idx) {
+    float *fbuffer = (float *)buffer;
+    float v = fbuffer[idx];
+    // clip the top of frametime graphs so they're less ugly
+    if (v > 50)
+        v = 49.9;
+
+    return v;
+}
+
 - (void) drawStatsGraphs {
     const int graphs = PlotCount;
 
@@ -387,7 +397,12 @@ static void HelpMarker(const char* desc)
         //ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
         //ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.90f, 0.70f, 0.00f, 1.00f)); // yellow
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // green
-        ImGui::PlotLines("##xx", buffers[i], countF, 0, (countF > 0 ? label : "no data"), scaleMin, scaleMax, ImVec2(fullW, plotH));
+        if (i == PLOT_FRAMETIME || i == PLOT_HOST_FRAMETIME) {
+            // getValue() clips at max 50
+            ImGui::PlotLines("##xx", getValue, buffers[i], countF, 0, (countF > 0 ? label : "no data"), scaleMin, scaleMax, ImVec2(fullW, plotH));
+        } else {
+            ImGui::PlotLines("##xx", buffers[i], countF, 0, (countF > 0 ? label : "no data"), scaleMin, scaleMax, ImVec2(fullW, plotH));
+        }
         ImGui::PopStyleColor(1);
         ImGui::PopID();
     }

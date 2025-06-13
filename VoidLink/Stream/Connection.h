@@ -25,6 +25,7 @@ typedef struct {
     CFTimeInterval displayRefreshRate;
     float avgDecodeTime;
     NSUInteger frameQueueSize;
+    FramePacingMode framePacingMode;
 } video_stats_t;
 
 @interface Connection : NSOperation <NSStreamDelegate>

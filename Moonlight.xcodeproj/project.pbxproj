@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -241,6 +241,8 @@
 		A10BC62E2DE8E65F00905783 /* BandwidthTracker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BandwidthTracker.h; sourceTree = "<group>"; };
 		A12025BD2DD7E352005015C8 /* ImGuiRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ImGuiRenderer.h; sourceTree = "<group>"; };
 		A12025BE2DD7E36B005015C8 /* ImGuiRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ImGuiRenderer.mm; sourceTree = "<group>"; };
+		A13F90582DFC3C5C0010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		A13F905C2DFC3C710010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A179C7B02DF72DAF00901300 /* Queue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Queue.h; sourceTree = "<group>"; };
 		A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = imgui_impl_metal.mm; sourceTree = "<group>"; };
 		A1967D992DEE419B00EFC5CF /* FloatBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FloatBuffer.m; sourceTree = "<group>"; };
@@ -370,6 +372,10 @@
 		FBDE86E519F82297001C18A8 /* UIAppView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = UIAppView.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A13F904F2DFC3B270010BB0F /* Tests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Tests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		FB1A67502132419700507771 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
@@ -492,6 +498,8 @@
 		FB290CF019B2C406004C83CF /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A13F90582DFC3C5C0010BB0F /* XCTest.framework */,
+				A13F905C2DFC3C710010BB0F /* XCTest.framework */,
 				A1EBD2F52DD94CE800F3BF4B /* Metal.framework */,
 				A1EBD2FA2DD94CFC00F3BF4B /* Metal.framework */,
 				A1EBD2F62DD94CE900F3BF4B /* MetalKit.framework */,
@@ -523,6 +531,7 @@
 		FB290CF919B2C406004C83CF /* Moonlight */ = {
 			isa = PBXGroup;
 			children = (
+				A13F904F2DFC3B270010BB0F /* Tests */,
 				A12025BE2DD7E36B005015C8 /* ImGuiRenderer.mm */,
 				A12025BD2DD7E352005015C8 /* ImGuiRenderer.h */,
 				D4746EEA1CBC740C006FB401 /* Moonlight-Bridging-Header.h */,
@@ -791,6 +800,9 @@
 			dependencies = (
 				FB1A68172132509800507771 /* PBXTargetDependency */,
 			);
+			fileSystemSynchronizedGroups = (
+				A13F904F2DFC3B270010BB0F /* Tests */,
+			);
 			name = "Moonlight TV";
 			packageProductDependencies = (
 				F74BEFA32C1A80E400224667 /* OpenSSL */,
@@ -811,6 +823,9 @@
 			);
 			dependencies = (
 				98AB2E861CAD468B0089BB98 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A13F904F2DFC3B270010BB0F /* Tests */,
 			);
 			name = Moonlight;
 			packageProductDependencies = (
@@ -1325,6 +1340,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PPLPFKSLF9;
+				ENABLE_TESTABILITY = NO;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Limelight/Limelight-Prefix.pch";
 				HEADER_SEARCH_PATHS = (

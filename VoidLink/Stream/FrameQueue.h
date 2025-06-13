@@ -25,13 +25,16 @@ typedef enum {
     DROP_ALL
 } FrameQueueDropMode;
 
+typedef BOOL (^FrameDropCallback)(Frame *frame, NSUInteger index);
+
 - (void)enqueue:(Frame *)frame;
 - (int)peekFrameType;
 - (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout;
 - (Frame *)dequeue;
 - (Frame *)dequeueAtIndex:(NSUInteger)index;
 - (int)dropWithTarget:(int)frameDropTarget
-             dropMode:(FrameQueueDropMode)dropMode;
+             dropMode:(FrameQueueDropMode)dropMode
+           usingBlock:(FrameDropCallback)block;
 - (NSUInteger)count;
 - (void)clear;
 

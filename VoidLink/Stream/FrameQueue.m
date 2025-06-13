@@ -147,7 +147,8 @@
 
 // Catch up if the queue is too large, but drop every other frame instead of multiple consecutive frames
 - (int)dropWithTarget:(int)frameDropTarget
-             dropMode:(FrameQueueDropMode)dropMode {
+             dropMode:(FrameQueueDropMode)dropMode
+           usingBlock:(FrameDropCallback)frameDropCallback {
     os_unfair_lock_lock(&_lock);
     int framesToDrop = (int)_queue.count - frameDropTarget;
     bool shouldDrop = YES;
@@ -171,7 +172,7 @@
             // the decoder has already decoded it.
             [toDrop addIndex:i];
 
-#ifdef FRAME_QUEUE_VERBOSE
+#ifdef DISPLAYLINK_VERBOSE
             Frame *frame = [_queue objectAtIndex:i];
             Log(LOG_I, @"[drop %d / %f] dropWithTarget:%d, drop mode:%@",
                 frame.frameNumber, frame.pts, frameDropTarget,
@@ -182,6 +183,18 @@
                 shouldDrop = NO;
             }
         }
+        // Callback with each frame before removal, for stats purposes
+        if (frameDropCallback) {
+            [_queue enumerateObjectsAtIndexes:toDrop
+                                      options:0
+                                   usingBlock:^(Frame *frame, NSUInteger idx, BOOL *stop) {
+                BOOL ok = frameDropCallback([_queue objectAtIndex:idx], idx);
+                if (!ok) {
+                    *stop = YES;
+                }
+            }];
+        }
+
         [_queue removeObjectsAtIndexes:toDrop];
         dropCount = (int)[toDrop count];
     }

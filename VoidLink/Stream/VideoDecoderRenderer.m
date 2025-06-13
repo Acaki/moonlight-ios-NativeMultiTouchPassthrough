@@ -23,7 +23,7 @@
 
 #if !defined(NDEBUG)
 // Define for extra logging related to frame pacing
-//#define DISPLAYLINK_VERBOSE
+#define DISPLAYLINK_VERBOSE
 #endif
 
 // Private libavformat API for writing the AV1 Codec Configuration Box
@@ -114,6 +114,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     frameQueue = [[FrameQueue alloc] init];
     seenFrameOne = NO;
 
+    // TODO: hook up to settings
+    _framePacingMode = PACING_MODE_VSYNC;
+
     [self reinitializeDisplayLayer];
 
     return self;
@@ -124,8 +127,21 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     self->videoFormat = videoFormat;
     self->frameRate = frameRate;
 
-    _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingQueue:)];
-    //_displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingTimestamps:)];
+    switch (_framePacingMode) {
+        case PACING_MODE_VSYNC:
+            // Deliver 1 frame at each vsync interval.
+            // Only uses client time.
+            // Drop frames intelligently to maintain chosen queue size of 1 or 2 (low-latency or smoother)
+            _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingQueue:)];
+            break;
+        case PACING_MODE_PTS:
+            // Similar to vsync mode, but frames are timed using the server's frame capture timestamp for scheduling.
+            // Requires at least Sunshine 2025.6
+            // Drop frames intelligently to maintain queue size 2.
+            // Performs about the same as vsync mode on iOS/tvOS due to fixed refresh rates.
+            _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingTimestamps:)];
+            break;
+    }
 
     if (@available(iOS 15.0, tvOS 15.0, *)) {
         _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
@@ -196,7 +212,11 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
     // Do we need to drop any frames?
     int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 2
-    int framesDropped = [frameQueue dropWithTarget:frameDropTarget dropMode:DROP_ALTERNATING];
+    int framesDropped = [frameQueue dropWithTarget:frameDropTarget
+                            dropMode:DROP_ALTERNATING
+                          usingBlock:^BOOL(Frame *frame, NSUInteger index) {
+        return NO; // don't stop
+    }];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
     // Get the next frame or wait if necessary. Aim to present the frame 3ms before deadline to allow
@@ -275,7 +295,11 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
     // Do we need to drop any frames?
     int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 2, but allow user control using ImGui slider
-    int framesDropped = [frameQueue dropWithTarget:frameDropTarget dropMode:DROP_ALTERNATING];
+    int framesDropped = [frameQueue dropWithTarget:frameDropTarget
+                                          dropMode:DROP_ALTERNATING
+                                        usingBlock:^BOOL(Frame *frame, NSUInteger index) {
+        return NO; // don't stop
+    }];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
     // Process the next frame for display

@@ -69,6 +69,10 @@ void DrCleanup(void)
     return bwTracker;
 }
 
+-(FramePacingMode) getFramePacingMode {
+    return renderer.framePacingMode;
+}
+
 -(BOOL) getVideoStats:(video_stats_t*)stats
 {
     // We return lastVideoStats because it is a complete 1 second window
@@ -174,6 +178,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
     currentVideoStats.avgDecodeTime = [renderer avgDecodeTime];
     currentVideoStats.frameQueueSize = [renderer frameQueueSize];
+    currentVideoStats.framePacingMode = [renderer framePacingMode];
 
     PLENTRY entry = decodeUnit->bufferList;
     while (entry != NULL) {
@@ -437,6 +442,13 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
     if (config.frameRate > 60 && [[NSProcessInfo processInfo] isLowPowerModeEnabled]) {
         Log(LOG_W, @"Limiting stream to 60fps because device is in low power mode");
         config.frameRate = 60;
+    }
+
+    // Lower to 90fps on Vision Pro
+    NSInteger deviceFps = UIScreen.mainScreen.maximumFramesPerSecond;
+    if (deviceFps < config.frameRate) {
+        Log(LOG_W, @"Limiting stream to %dfps due to max refresh rate", deviceFps);
+        config.frameRate = (int)deviceFps;
     }
 
     LiInitializeStreamConfiguration(&_streamConfig);

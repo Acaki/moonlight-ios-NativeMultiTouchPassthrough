@@ -13,11 +13,17 @@
 
 #include "Limelight.h"
 
+typedef enum {
+    PACING_MODE_VSYNC,
+    PACING_MODE_PTS
+} FramePacingMode;
+
 @interface VideoDecoderRenderer : NSObject
 
 @property (atomic, readonly) CFTimeInterval displayRefreshRate;
 @property (atomic, readonly) float avgDecodeTime;
 @property (atomic, readonly) NSUInteger frameQueueSize;
+@property (atomic, readonly) FramePacingMode framePacingMode;
 
 - (id)initWithView:(UIView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio;
 

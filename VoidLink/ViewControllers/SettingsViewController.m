@@ -152,9 +152,9 @@ BOOL isCustomResolution(CGSize res) {
     UITapGestureRecognizer *resolutionDisplayViewTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(resolutionDisplayViewTapped:)];
     [self.resolutionDisplayView addGestureRecognizer:resolutionDisplayViewTap];
     
-    resolutionTable[0] = CGSizeMake(640, 360);
-    resolutionTable[1] = CGSizeMake(1280, 720);
-    resolutionTable[2] = CGSizeMake(1920, 1080);
+    resolutionTable[0] = CGSizeMake(1280, 720);
+    resolutionTable[1] = CGSizeMake(1920, 1080);
+    resolutionTable[2] = CGSizeMake(2560, 1440);
     resolutionTable[3] = CGSizeMake(3840, 2160);
     resolutionTable[4] = CGSizeMake(safeAreaWidth, fullScreenHeight);
     resolutionTable[5] = CGSizeMake(fullScreenWidth, fullScreenHeight);
@@ -174,8 +174,11 @@ BOOL isCustomResolution(CGSize res) {
         case 60:
             framerate = 1;
             break;
-        case 120:
+        case 90:
             framerate = 2;
+            break;
+        case 120:
+            framerate = 3;
             break;
     }
 
@@ -188,15 +191,16 @@ BOOL isCustomResolution(CGSize res) {
         }
     }
 
-    // Only show the 120 FPS option if we have a > 60-ish Hz display
-    bool enable120Fps = false;
+    // Only show the 90 & 120 FPS options if we have a > 60-ish Hz display
+    bool enableHighFramerate = false;
     if (@available(iOS 10.3, tvOS 10.3, *)) {
         if ([UIScreen mainScreen].maximumFramesPerSecond > 62) {
-            enable120Fps = true;
+            enableHighFramerate = true;
         }
     }
-    if (!enable120Fps) {
+    if (!enableHighFramerate) {
         [self.framerateSelector removeSegmentAtIndex:2 animated:NO];
+        [self.framerateSelector removeSegmentAtIndex:3 animated:NO];
     }
 
     // Disable codec selector segments for unsupported codecs
@@ -326,7 +330,7 @@ BOOL isCustomResolution(CGSize res) {
     }
 
     defaultBitrate = round(resolutionFactor * frameRateFactor) * 1000;
-    _bitrate = MIN(defaultBitrate, 100000);
+    _bitrate = MIN(defaultBitrate, 150000);
     [self.bitrateSlider setValue:[self getSliderValueForBitrate:_bitrate] animated:YES];
     
     [self updateBitrateText];
@@ -474,6 +478,8 @@ BOOL isCustomResolution(CGSize res) {
         case 1:
             return 60;
         case 2:
+            return 90;
+        case 3:
             return 120;
         default:
             abort();

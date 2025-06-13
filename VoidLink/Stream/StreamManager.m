@@ -188,7 +188,7 @@
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (%.2f Hz) (Codec: %@)\n"
             "Bitrate: %.1f Mbps, Peak (%lus): %.1f\n"
             "%@"
-            "Frames dropped: %.2f%%, in queue: %lu\n"
+            "Frames in queue: %lu, pacing mode: %@\n"
             "Average network latency: %@\n"
             "Average decoding time: %.2f ms",
             _config.width,
@@ -198,8 +198,9 @@
             [_connection getActiveCodecName],
             avgVideoMbps, [_connection getBwTracker].windowSeconds, peakVideoMbps,
             hostProcessingString,
-            stats.networkDroppedFrames / interval,
+            // stats.networkDroppedFrames / interval,
             (unsigned long)stats.frameQueueSize,
+            stats.framePacingMode == PACING_MODE_VSYNC ? @"vsync with queue" : @"frame timestamps",
             latencyString,
             stats.avgDecodeTime];
 }
