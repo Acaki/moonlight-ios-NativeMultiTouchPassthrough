@@ -172,13 +172,6 @@
             // the decoder has already decoded it.
             [toDrop addIndex:i];
 
-#ifdef DISPLAYLINK_VERBOSE
-            Frame *frame = [_queue objectAtIndex:i];
-            Log(LOG_I, @"[drop %d / %f] dropWithTarget:%d, drop mode:%@",
-                frame.frameNumber, frame.pts, frameDropTarget,
-                dropMode == DROP_ALL ? @"all" : @"alternating");
-#endif
-
             if (dropMode == DROP_ALTERNATING) {
                 shouldDrop = NO;
             }
@@ -188,7 +181,9 @@
             [_queue enumerateObjectsAtIndexes:toDrop
                                       options:0
                                    usingBlock:^(Frame *frame, NSUInteger idx, BOOL *stop) {
-                BOOL ok = frameDropCallback([_queue objectAtIndex:idx], idx);
+                // Callback receives the frame about to be dropped, and the queue count before any frames have been removed.
+                // If it returns NO, no more callbacks will be sent for this batch.
+                BOOL ok = frameDropCallback([_queue objectAtIndex:idx], _queue.count);
                 if (!ok) {
                     *stop = YES;
                 }

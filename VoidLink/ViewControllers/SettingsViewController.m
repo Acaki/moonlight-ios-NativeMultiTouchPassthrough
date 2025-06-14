@@ -199,8 +199,8 @@ BOOL isCustomResolution(CGSize res) {
         }
     }
     if (!enableHighFramerate) {
-        [self.framerateSelector removeSegmentAtIndex:2 animated:NO];
-        [self.framerateSelector removeSegmentAtIndex:3 animated:NO];
+        [self.framerateSelector setEnabled:NO forSegmentAtIndex:2];
+        [self.framerateSelector setEnabled:NO forSegmentAtIndex:3];
     }
 
     // Disable codec selector segments for unsupported codecs

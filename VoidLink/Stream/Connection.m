@@ -173,7 +173,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     
     currentVideoStats.receivedFrames++;
     currentVideoStats.totalFrames++;
+
     [bwTracker addBytes:decodeUnit->fullLength];
+    [_callbacks observeFloat:PLOT_FRAME_BYTES value:(decodeUnit->fullLength / 1024.0)];
+
     // TODO: pull all of these in one call
     currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
     currentVideoStats.avgDecodeTime = [renderer avgDecodeTime];

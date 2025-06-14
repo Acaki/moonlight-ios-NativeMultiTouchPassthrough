@@ -214,8 +214,14 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 2
     int framesDropped = [frameQueue dropWithTarget:frameDropTarget
                             dropMode:DROP_ALTERNATING
-                          usingBlock:^BOOL(Frame *frame, NSUInteger index) {
-        return NO; // don't stop
+                          usingBlock:^BOOL(Frame *frame, NSUInteger queueCount) {
+#ifdef DISPLAYLINK_VERBOSE
+        Log(LOG_I, @"[%.3f] dropping frame %d because queue %d > target %d",
+            deadline, frame.frameNumber, queueCount);
+        return NO; // send future callbacks
+#else
+        return YES; // skip future callbacks
+#endif
     }];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
@@ -231,7 +237,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         // [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
 
         // Option 2, snap exactly to deadline, even though it won't really be displayed until deadline * 2
-        CFTimeInterval targetLocal = deadline;
+        CFTimeInterval targetLocal = deadline + link.duration;
         [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
 
 #ifdef DISPLAYLINK_VERBOSE
@@ -294,11 +300,17 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 
     // Do we need to drop any frames?
-    int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 2, but allow user control using ImGui slider
+    int frameDropTarget = [self->_callbacks getDesiredQueueSize]; // default 2
     int framesDropped = [frameQueue dropWithTarget:frameDropTarget
-                                          dropMode:DROP_ALTERNATING
-                                        usingBlock:^BOOL(Frame *frame, NSUInteger index) {
-        return NO; // don't stop
+                            dropMode:DROP_ALTERNATING
+                          usingBlock:^BOOL(Frame *frame, NSUInteger queueCount) {
+#ifdef DISPLAYLINK_VERBOSE
+        Log(LOG_I, @"[%.3f] dropping frame %d because queue %d > target %d",
+            deadline, frame.frameNumber, queueCount);
+        return NO; // send future callbacks
+#else
+        return YES; // skip future callbacks
+#endif
     }];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 

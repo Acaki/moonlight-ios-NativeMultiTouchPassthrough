@@ -24,6 +24,7 @@
 #if !defined(IMGUI_DISABLE)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    //ImPlot3D::CreateContext();
     //ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -96,6 +97,14 @@
         .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
+    _plots[PLOT_FRAME_BYTES] = {
+        .title     = "Bytes per frame",
+        .labelType = PLOT_LABEL_MIN_MAX_AVG,
+        .unit      = "KB",
+        .scaleMin  = 0.0f,
+        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
+    };
+
     return self;
 }
 
@@ -144,12 +153,15 @@
 
     // Our state (make them static = more or less global) as a convenience to keep the example terse.
     static bool show_demo_window = false;
+    static bool show_implot3d_demo = false;
     static ImVec4 clear_color = ImVec4(0, 0, 0, 0);
 
     // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    if (show_demo_window) {
+    if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
-    }
+
+    // if (show_implot3d_demo)
+    //    ImPlot3D::ShowDemoWindow(&show_implot3d_demo);
 
     // Custom Moonlight stuff goes here
     [self drawStatsGraphs];
@@ -184,6 +196,7 @@
 #if !defined(IMGUI_DISABLE)
     ImGui_ImplMetal_Shutdown();
     //ImPlot::DestroyContext();
+    //ImPlot3D::DestroyContext();
     ImGui::DestroyContext();
 #endif
 }
@@ -271,7 +284,8 @@ inline static float getValue(void *buffer, int idx) {
     const int graphs = PlotCount;
 
     // we malloc a buffer for frametimes once and reuse it
-    static float * buffers[7] = {
+    static float * buffers[8] = {
+        (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),
         (float *)malloc(sizeof(float) * 512),

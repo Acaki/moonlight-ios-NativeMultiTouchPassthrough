@@ -8,6 +8,7 @@ typedef enum {
     PLOT_DISPLAYLINK,
     PLOT_DECODE,
     PLOT_DROPPED,
+    PLOT_FRAME_BYTES,
     PlotCount
 } PlotType;
 
