@@ -23,7 +23,7 @@ typedef struct {
     int maxHostProcessingLatency;
     int minHostProcessingLatency;
     CFTimeInterval displayRefreshRate;
-    float avgDecodeTime;
+    PlotMetrics decodeMetrics;
     NSUInteger frameQueueSize;
     FramePacingMode framePacingMode;
 } video_stats_t;

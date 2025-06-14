@@ -179,7 +179,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 
     // TODO: pull all of these in one call
     currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
-    currentVideoStats.avgDecodeTime = [renderer avgDecodeTime];
+    [renderer getDecodeMetrics:&currentVideoStats.decodeMetrics];
     currentVideoStats.frameQueueSize = [renderer frameQueueSize];
     currentVideoStats.framePacingMode = [renderer framePacingMode];
 

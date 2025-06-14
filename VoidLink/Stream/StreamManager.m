@@ -190,7 +190,7 @@
             "%@"
             "Frames in queue: %lu, pacing mode: %@\n"
             "Average network latency: %@\n"
-            "Average decoding time: %.2f ms",
+            "Decode min/max/avg: %.2f/%.2f/%.2f ms",
             _config.width,
             _config.height,
             fps,
@@ -202,7 +202,7 @@
             (unsigned long)stats.frameQueueSize,
             stats.framePacingMode == PACING_MODE_VSYNC ? @"vsync with queue" : @"frame timestamps",
             latencyString,
-            stats.avgDecodeTime];
+            stats.decodeMetrics.min, stats.decodeMetrics.max, stats.decodeMetrics.avg];
 }
 
 @end

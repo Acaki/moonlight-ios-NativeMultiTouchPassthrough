@@ -6,6 +6,8 @@
 //  Copyright © 2020 Moonlight Game Streaming Project. All rights reserved.
 //
 
+#import "Plot.h"
+
 @protocol ConnectionCallbacks <NSObject>
 
 - (void) connectionStarted;
@@ -23,7 +25,7 @@
 - (void) videoContentShown;
 
 - (void) observeFloat:(int)plotId value:(CFTimeInterval)value;
-- (float) observeFloatReturnAvg:(int)plotId value:(CFTimeInterval)value;
+- (void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics *)plotMetrics;
 - (int) getDesiredQueueSize;
 
 @end

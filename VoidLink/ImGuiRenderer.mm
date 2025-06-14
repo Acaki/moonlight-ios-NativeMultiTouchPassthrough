@@ -246,9 +246,13 @@
     [self.plots[plotId].buffer addValue:(float)value];
 }
 
-- (float) observeFloatReturnAvg:(int)plotId value:(CFTimeInterval)value {
+- (void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics *)plotMetrics {
     [self.plots[plotId].buffer addValue:(float)value];
-    return [self.plots[plotId].buffer averageValue];
+    if (plotMetrics != nil) {
+        plotMetrics->min = [self.plots[plotId].buffer minValue];
+        plotMetrics->max = [self.plots[plotId].buffer maxValue];
+        plotMetrics->avg = [self.plots[plotId].buffer averageValue];
+    }
 }
 
 - (int) getDesiredQueueSize {

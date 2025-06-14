@@ -10,6 +10,7 @@
 
 #import "ConnectionCallbacks.h"
 #import "FrameQueue.h"
+#import "Plot.h"
 
 #include "Limelight.h"
 
@@ -21,7 +22,7 @@ typedef enum {
 @interface VideoDecoderRenderer : NSObject
 
 @property (atomic, readonly) CFTimeInterval displayRefreshRate;
-@property (atomic, readonly) float avgDecodeTime;
+@property (atomic, readonly) PlotMetrics decodeMetrics;
 @property (atomic, readonly) NSUInteger frameQueueSize;
 @property (atomic, readonly) FramePacingMode framePacingMode;
 
@@ -31,6 +32,7 @@ typedef enum {
 - (void)renderFrame:(Frame *)frame atTime:(CMTime)targetTime;
 - (void)cleanup;
 - (void)setHdrMode:(BOOL)enabled;
+- (void)getDecodeMetrics:(PlotMetrics *)decodeMetrics;
 
 - (int)submitDecodeBuffer:(unsigned char *)data
                    length:(int)length

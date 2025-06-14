@@ -28,3 +28,9 @@ struct PlotDef {
     float maxY;
     BOOL hidden;
 };
+
+typedef struct {
+    float min;
+    float max;
+    float avg;
+} PlotMetrics;

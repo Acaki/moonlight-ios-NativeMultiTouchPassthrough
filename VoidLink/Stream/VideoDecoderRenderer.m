@@ -191,7 +191,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     CFTimeInterval deadline = link.targetTimestamp;
     _displayRefreshRate = 1.0f / link.duration;
     static CFTimeInterval lastTargetLocal = 0.0f;
-    static CFTimeInterval lastFramePts = 0.0f;
 
     [self checkDisplayLayer];
 
@@ -217,7 +216,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                           usingBlock:^BOOL(Frame *frame, NSUInteger queueCount) {
 #ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"[%.3f] dropping frame %d because queue %d > target %d",
-            deadline, frame.frameNumber, queueCount);
+            deadline, frame.frameNumber, queueCount, frameDropTarget);
         return NO; // send future callbacks
 #else
         return YES; // skip future callbacks
@@ -250,13 +249,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             [self->_callbacks observeFloat:PLOT_FRAMETIME value:(targetLocal - lastTargetLocal) * 1000.0];
         }
         lastTargetLocal = targetLocal;
-
-        if (lastFramePts != 0) {
-            [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastFramePts) * 1000.0];
-        }
-        lastFramePts = frame.pts;
-
-        [self->_callbacks observeFloat:PLOT_QUEUED_FRAMES value:queuedFrames];
     }
 }
 
@@ -267,8 +259,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     static CFTimeInterval anchorLocal = 0.0f;
     static CMTime anchorHost;
     static CFTimeInterval lastTargetLocal = 0.0f;
-    static CFTimeInterval lastStart = 0.0f;
-    static CFTimeInterval lastFramePts = 0.0f;
 
     CFTimeInterval start = link.timestamp;
     CFTimeInterval deadline = link.targetTimestamp;
@@ -306,7 +296,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                           usingBlock:^BOOL(Frame *frame, NSUInteger queueCount) {
 #ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"[%.3f] dropping frame %d because queue %d > target %d",
-            deadline, frame.frameNumber, queueCount);
+            deadline, frame.frameNumber, queueCount, frameDropTarget);
         return NO; // send future callbacks
 #else
         return YES; // skip future callbacks
@@ -347,13 +337,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             [self->_callbacks observeFloat:PLOT_FRAMETIME value:(targetLocal - lastTargetLocal) * 1000.0];
         }
         lastTargetLocal = targetLocal;
-
-        if (lastFramePts != 0) {
-            [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastFramePts) * 1000.0];
-        }
-        lastFramePts = frame.pts;
-
-        [self->_callbacks observeFloat:PLOT_QUEUED_FRAMES value:queuedFrames];
     }
 
     // TODO: handle presentationTimeUs rollover every 13 hours
@@ -922,7 +905,22 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
           self->_frameQueueSize = self->frameQueue.count; // this is the count shown in stats
 
           // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
-          self->_avgDecodeTime = [self->_callbacks observeFloatReturnAvg:PLOT_DECODE value:(CACurrentMediaTime() - decodeStartTime) * 1000.0];
+          static PlotMetrics decodeMetrics = {};
+          [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE
+                                                value:(CACurrentMediaTime() - decodeStartTime) * 1000.0
+                                          plotMetrics:&decodeMetrics];
+          self->_decodeMetrics.min = decodeMetrics.min;
+          self->_decodeMetrics.max = decodeMetrics.max;
+          self->_decodeMetrics.avg = decodeMetrics.avg;
+
+          // It's important we capture these metrics on the incoming thread, so they aren't affected by Moonlight choosing to drop frames.
+          static CFTimeInterval lastHostFrame = 0.0f;
+          if (lastHostFrame != 0) {
+              [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
+          }
+          lastHostFrame = frame.pts;
+
+          [self->_callbacks observeFloat:PLOT_QUEUED_FRAMES value:[self->frameQueue count]];
         });
 
     if (status == noErr) {
@@ -997,6 +995,14 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     // If the metadata changed, request an IDR frame to re-create the CMVideoFormatDescription
     if (metadataChanged) {
         LiRequestIdrFrame();
+    }
+}
+
+- (void)getDecodeMetrics:(PlotMetrics *)decodeMetrics {
+    if (decodeMetrics != nil) {
+        decodeMetrics->min = _decodeMetrics.min;
+        decodeMetrics->max = _decodeMetrics.max;
+        decodeMetrics->avg = _decodeMetrics.avg;
     }
 }
 

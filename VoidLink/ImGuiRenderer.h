@@ -21,6 +21,6 @@
 
 -(nonnull instancetype) initWithFrame:(CGRect)bounds streamFps:(int)streamFps;
 -(void) observeFloat:(int)plotId value:(CFTimeInterval)value;
--(float) observeFloatReturnAvg:(int)plotId value:(CFTimeInterval)value;
+-(void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics * _Nullable)plotMetrics;
 -(int) getDesiredQueueSize;
 @end
