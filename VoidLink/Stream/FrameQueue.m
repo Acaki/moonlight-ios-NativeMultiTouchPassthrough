@@ -4,7 +4,7 @@
 
 // The logging in this class is very heavy
 #if !defined(NDEBUG)
-//# define FRAME_QUEUE_VERBOSE
+# define FRAME_QUEUE_VERBOSE
 #endif
 
 #pragma mark Frame
@@ -21,7 +21,8 @@
         _pts90        = CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer);
 
 #ifdef FRAME_QUEUE_VERBOSE
-        Log(LOG_D, @"[%d / %f] Frame init, pts90 %d", _frameNumber, CMTimeGetSeconds(_pts90), _pts90.value);
+//        Log(LOG_I, @"[%.3f] [%d / %f] Frame init, pts90 %d",
+//            CACurrentMediaTime(), _frameNumber, CMTimeGetSeconds(_pts90), _pts90.value);
 #endif
     }
     return self;
@@ -33,7 +34,7 @@
 
 - (void)dealloc {
 #ifdef FRAME_QUEUE_VERBOSE
-    Log(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, CMTimeGetSeconds(_pts90));
+    // Log(LOG_I, @"[%.3f] [%d / %f] Frame dealloc", CACurrentMediaTime(), _frameNumber, CMTimeGetSeconds(_pts90));
 #endif
     // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
     // so we don't need to CFRetain in init, but do need to release it
@@ -83,7 +84,7 @@
     }
     [_queue addObject:frame];
 #ifdef FRAME_QUEUE_VERBOSE
-    Log(LOG_I, @"[-> %d / %f] enqueue frame, queue size %d", frame.frameNumber, frame.pts, _queue.count);
+    Log(LOG_I, @"[%.3f] [-> %d / %f] enqueue frame, queue size %d", CACurrentMediaTime(), frame.frameNumber, frame.pts, _queue.count);
 #endif
     os_unfair_lock_unlock(&_lock);
     dispatch_semaphore_signal(_semaphore);
@@ -99,7 +100,7 @@
     if (dispatch_semaphore_wait(self.semaphore, when) != 0) {
         // timed out
 #ifdef FRAME_QUEUE_VERBOSE
-        Log(LOG_I, @"[-] dequeueWithTimeout timed out after %.3f ms", timeout * 1000.0);
+        Log(LOG_I, @"[%.3f] [-] dequeueWithTimeout timed out after %.3f ms", CACurrentMediaTime(), timeout * 1000.0);
 #endif
         return nil;
     }
@@ -114,7 +115,7 @@
         selected = _queue.firstObject;
         [_queue removeObjectAtIndex:0];
 #ifdef FRAME_QUEUE_VERBOSE
-        Log(LOG_I, @"[<- %d / %f] dequeue frame, queue size %d", selected.frameNumber, selected.pts, _queue.count);
+        Log(LOG_I, @"[%.3f] [<- %d / %f] dequeue frame, queue size %d", CACurrentMediaTime(), selected.frameNumber, selected.pts, _queue.count);
 #endif
     }
     os_unfair_lock_unlock(&_lock);
@@ -128,7 +129,7 @@
         selected = [_queue objectAtIndex:index];
         [_queue removeObjectAtIndex:index];
 #ifdef FRAME_QUEUE_VERBOSE
-        Log(LOG_I, @"[<- %d / %f] dequeueAtIndex:%d, queue size %d", selected.frameNumber, selected.pts, index, _queue.count);
+        Log(LOG_I, @"[%.3f] [<- %d / %f] dequeueAtIndex:%d, queue size %d", CACurrentMediaTime(), selected.frameNumber, selected.pts, index, _queue.count);
 #endif
     }
     os_unfair_lock_unlock(&_lock);

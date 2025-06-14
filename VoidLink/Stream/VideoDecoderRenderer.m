@@ -217,9 +217,9 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 #ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"[%.3f] dropping frame %d because queue %d > target %d",
             deadline, frame.frameNumber, queueCount, frameDropTarget);
-        return NO; // send future callbacks
+        return YES; // send future callbacks
 #else
-        return YES; // skip future callbacks
+        return NO; // skip future callbacks
 #endif
     }];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
@@ -297,9 +297,9 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 #ifdef DISPLAYLINK_VERBOSE
         Log(LOG_I, @"[%.3f] dropping frame %d because queue %d > target %d",
             deadline, frame.frameNumber, queueCount, frameDropTarget);
-        return NO; // send future callbacks
+        return YES; // send future callbacks
 #else
-        return YES; // skip future callbacks
+        return NO; // skip future callbacks
 #endif
     }];
     [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
