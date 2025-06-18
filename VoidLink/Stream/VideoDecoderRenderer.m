@@ -423,13 +423,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
     // I'm not sure this does anything, when our timestamps are already "now".
     // set the immediate flag if timebase is using mach time (from queue-based displaylink)
-//    if (targetTime.timescale == NSEC_PER_SEC) {
-//        CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(frame.sampleBuffer, true);
-//        if (attachments) {
-//            CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
-//            CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
-//        }
-//    }
+    if (targetTime.timescale == NSEC_PER_SEC) {
+        CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(frame.sampleBuffer, true);
+        if (attachments) {
+            CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+            CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+        }
+    }
 
     [self->displayLayer enqueueSampleBuffer:frame.sampleBuffer];
 

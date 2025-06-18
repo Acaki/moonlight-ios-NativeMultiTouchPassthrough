@@ -28,8 +28,17 @@ struct PlotDef {
 @property (nonatomic) struct PlotDef * _Nonnull plots;
 @property (nonatomic) FloatBuffer * _Nonnull frametimes;
 @property (nonatomic) BOOL enableGraphs;
+@property (nonatomic) float graphOpacity;
+@property (nonatomic) BOOL imguiRunning;
 
--(nonnull instancetype) initWithFrame:(CGRect)bounds streamFps:(int)streamFps enableGraphs:(BOOL)enableGraphs;
+-(nonnull instancetype) initWithFrame:(CGRect)bounds
+                            streamFps:(int)streamFps
+                         enableGraphs:(BOOL)enableGraphs
+                         graphOpacity:(int)graphOpacity;
+-(void) start;
+-(void) show;
+-(void) hide;
+-(void) stop;
 -(void) observeFloat:(int)plotId value:(CFTimeInterval)value;
 -(void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics * _Nullable)plotMetrics;
 @end

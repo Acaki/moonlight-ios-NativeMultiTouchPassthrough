@@ -69,6 +69,7 @@
                absoluteTouchMode:(BOOL)absoluteTouchMode
                     statsOverlay:(BOOL)statsOverlay
                     enableGraphs:(BOOL)enableGraphs
+                    graphOpacity:(NSInteger)graphOpacity
 {
     [_managedObjectContext performBlockAndWait:^{
         Settings* settingsToSave = [self retrieveSettings];
@@ -89,6 +90,7 @@
         settingsToSave.absoluteTouchMode = absoluteTouchMode;
         settingsToSave.statsOverlay = statsOverlay;
         settingsToSave.enableGraphs = enableGraphs;
+        settingsToSave.graphOpacity = [NSNumber numberWithInteger:graphOpacity];
         [self saveData];
     }];
 }

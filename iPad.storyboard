@@ -281,10 +281,9 @@
                 <color key="tintColor" red="0.6716768742" green="0.61711704730000005" blue="0.99902987480000005" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                 <color key="selectedSegmentTintColor" red="0.6716768742" green="0.61711704730000005" blue="0.99902987480000005" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
               </segmentedControl>
-              <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Frames to Buffer" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="y6L-Hp-ox0">
+              <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Frames to Buffer" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="y6L-Hp-ox0">
                 <rect key="frame" x="16" y="825" width="151" height="21"/>
                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                <color key="tintColor" red="0.81533776120000001" green="0.85979419950000002" blue="0.91372549020000005" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                 <fontDescription key="fontDescription" type="system" pointSize="17"/>
                 <color key="textColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                 <nil key="highlightedColor"/>
@@ -298,8 +297,8 @@
                 <rect key="frame" x="16" y="883" width="452" height="35"/>
                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                 <color key="tintColor" red="0.81533776120000001" green="0.85979419950000002" blue="0.91372549020000005" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                <fontDescription key="fontDescription" type="system" pointSize="13"/>
-                <color key="textColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                <color key="textColor" systemColor="secondaryLabelColor"/>
                 <nil key="highlightedColor"/>
               </label>
               <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Statistics Overlay" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="DDs-JE-wFv" userLabel="Statistics Overlay">
@@ -321,15 +320,15 @@
                 <color key="tintColor" red="0.6716768742" green="0.61711704730000005" blue="0.99902987480000005" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                 <color key="selectedSegmentTintColor" red="0.6716768742" green="0.61711704730000005" blue="0.99902987480000005" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
               </segmentedControl>
-              <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Performance Graphs" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tki-3O-4C7" userLabel="Performance Graphs">
-                <rect key="frame" x="16" y="990" width="186" height="21"/>
+              <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Performance Graphs - Opacity: 50%" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tki-3O-4C7" userLabel="Performance Graphs">
+                <rect key="frame" x="16" y="990" width="349" height="21"/>
                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                 <fontDescription key="fontDescription" type="system" pointSize="17"/>
                 <color key="textColor" red="0.93902439019999995" green="0.9625305918" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                 <nil key="highlightedColor"/>
               </label>
               <segmentedControl opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="kic-po-AP9" userLabel="Performance Graphs Selector">
-                <rect key="frame" x="16" y="1019" width="459" height="32"/>
+                <rect key="frame" x="16" y="1019" width="349" height="32"/>
                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                 <string key="toolTip">Swipe up/down with two fingers to show or hide the stats overlay. If you enable graphs, frametime and frame queue metrics are shown. Best viewed on devices with larger screens.</string>
                 <string key="toolTip">Swipe up/down with two fingers to show or hide the stats overlay. If you enable graphs, frametime and frame queue metrics are shown. Best viewed on devices with larger screens.</string>
@@ -344,11 +343,15 @@
                 <rect key="frame" x="16" y="1054" width="452" height="48"/>
                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                 <color key="tintColor" red="0.81533776120000001" green="0.85979419950000002" blue="0.91372549020000005" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                <string key="text">Displays frametime and buffer health metrics. These may obscure parts of the screen. Swipe up/down with two fingers to show or hide.</string>
-                <fontDescription key="fontDescription" type="system" pointSize="13"/>
-                <color key="textColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                <string key="text">Displays frametime and buffer health metrics. Adjust the opacity if they obscure parts of the screen. Swipe up/down with two fingers to show or hide all stats.</string>
+                <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                <color key="textColor" systemColor="secondaryLabelColor"/>
                 <nil key="highlightedColor"/>
               </label>
+              <stepper opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" value="50" maximumValue="100" stepValue="10" translatesAutoresizingMaskIntoConstraints="NO" id="59h-sP-o5J">
+                <rect key="frame" x="381" y="1019" width="94" height="32"/>
+                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+              </stepper>
             </subviews>
             <color key="backgroundColor" systemColor="viewFlipsideBackgroundColor"/>
           </view>
@@ -358,10 +361,12 @@
             <outlet property="bitrateSlider" destination="Dhz-C3-9YE" id="iUW-SI-Kio"/>
             <outlet property="btMouseSelector" destination="ovt-ED-f2K" id="5Ma-09-dEU"/>
             <outlet property="codecSelector" destination="K4A-oH-Bs0" id="HPO-ox-mMJ"/>
+            <outlet property="enableGraphsLabel" destination="tki-3O-4C7" id="abv-k1-028"/>
             <outlet property="enableGraphsSelector" destination="kic-po-AP9" id="lV4-LW-PW0"/>
             <outlet property="frameQueueSizeLabel" destination="y6L-Hp-ox0" id="Oda-vb-s1O"/>
             <outlet property="frameQueueSizeSlider" destination="NuA-xj-vm1" id="vsW-jC-QxD"/>
             <outlet property="framerateSelector" destination="DcS-lH-XPm" id="IYs-HO-oOW"/>
+            <outlet property="graphOpacityStepper" destination="59h-sP-o5J" id="u75-Ft-M66"/>
             <outlet property="hdrSelector" destination="wCE-ZB-6i9" id="aSG-Tt-ViF"/>
             <outlet property="multiControllerSelector" destination="JLX-90-Wnf" id="jyS-7G-58w"/>
             <outlet property="onscreenControlSelector" destination="vPz-0L-WrP" id="g6r-Of-WFx"/>
@@ -471,6 +476,9 @@
   <resources>
     <image name="1.square" catalog="system" width="128" height="114"/>
     <image name="5.square" catalog="system" width="128" height="114"/>
+    <systemColor name="secondaryLabelColor">
+      <color red="0.23529411759999999" green="0.23529411759999999" blue="0.26274509800000001" alpha="0.59999999999999998" colorSpace="custom" customColorSpace="sRGB"/>
+    </systemColor>
     <systemColor name="systemBackgroundColor">
       <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
     </systemColor>

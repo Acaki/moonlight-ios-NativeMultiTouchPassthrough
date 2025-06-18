@@ -35,6 +35,7 @@
 @property (nonatomic) BOOL absoluteTouchMode;
 @property (nonatomic) BOOL statsOverlay;
 @property (nonatomic) BOOL enableGraphs;
+@property (nonatomic, retain) NSNumber * graphOpacity;
 
 - (id) initFromSettings:(Settings*)settings;
 

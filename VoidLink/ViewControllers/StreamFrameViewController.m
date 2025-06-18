@@ -91,7 +91,7 @@
     [UIApplication sharedApplication].idleTimerDisabled = YES;
     
     _settings = [[[DataManager alloc] init] getSettings];
-    
+
     _stageLabel = [[UILabel alloc] init];
     [_stageLabel setUserInteractionEnabled:NO];
     [_stageLabel setText:[NSString stringWithFormat:@"Starting %@...", self.streamConfig.appName]];
@@ -232,7 +232,8 @@
     // Make a MetalKit view for ImGui
     self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds
                                                 streamFps:[_settings.framerate intValue]
-                                             enableGraphs:_settings.enableGraphs];
+                                             enableGraphs:_settings.enableGraphs
+                                             graphOpacity:[_settings.graphOpacity intValue]];
     [self.view addSubview:self.imguiView.mtkView];
     [self.view bringSubviewToFront:self.imguiView.mtkView];
 }
@@ -415,6 +416,11 @@
                                                                  userInfo:nil
                                                                   repeats:YES];
         [self->_statsUpdateTimer fire];
+
+        if (_settings.enableGraphs) {
+            [self.imguiView start];
+            [self.imguiView show];
+        }
     }
 }
 
@@ -433,6 +439,11 @@
 
     if (_overlayView != nil) {
         [_overlayView setHidden:YES];
+    }
+
+    if (_settings.enableGraphs) {
+        [self.imguiView hide];
+        [self.imguiView stop];
     }
 }
 

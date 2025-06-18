@@ -28,7 +28,9 @@
 @property (strong, nonatomic) IBOutlet UISegmentedControl *btMouseSelector;
 @property (strong, nonatomic) IBOutlet UISegmentedControl *statsOverlaySelector;
 @property (strong, nonatomic) IBOutlet UIScrollView *scrollView;
+@property (strong, nonatomic) IBOutlet UILabel *enableGraphsLabel;
 @property (strong, nonatomic) IBOutlet UISegmentedControl *enableGraphsSelector;
+@property (strong, nonatomic) IBOutlet UIStepper *graphOpacityStepper;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability"

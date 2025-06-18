@@ -17,6 +17,7 @@
     NSInteger _bitrate;
     NSInteger _lastSelectedResolutionIndex;
     NSInteger _frameQueueSize;
+    NSInteger _graphOpacity;
 }
 
 @dynamic overrideUserInterfaceStyle;
@@ -140,8 +141,8 @@ BOOL isCustomResolution(CGSize res) {
     
     // Ensure we pick a bitrate that falls exactly onto a slider notch
     _bitrate = bitrateTable[[self getSliderValueForBitrate:[currentSettings.bitrate intValue]]];
-
     _frameQueueSize = [currentSettings.frameQueueSize intValue];
+    _graphOpacity = [currentSettings.graphOpacity intValue];
 
     // Get the size of the screen with and without safe area insets
     UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
@@ -246,11 +247,18 @@ BOOL isCustomResolution(CGSize res) {
     else {
         [self.hdrSelector setSelectedSegmentIndex:currentSettings.enableHdr ? 1 : 0];
     }
-    
+
     [self.touchModeSelector setSelectedSegmentIndex:currentSettings.absoluteTouchMode ? 1 : 0];
     [self.touchModeSelector addTarget:self action:@selector(touchModeChanged) forControlEvents:UIControlEventValueChanged];
     [self.statsOverlaySelector setSelectedSegmentIndex:currentSettings.statsOverlay ? 1 : 0];
     [self.enableGraphsSelector setSelectedSegmentIndex:currentSettings.enableGraphs ? 1 : 0];
+    [self.enableGraphsSelector addTarget:self action:@selector(enableGraphsChanged) forControlEvents:UIControlEventValueChanged];
+    [self enableGraphsChanged];
+    [self.graphOpacityStepper setMinimumValue:0];
+    [self.graphOpacityStepper setMaximumValue:100];
+    [self.graphOpacityStepper setValue:_graphOpacity];
+    [self.graphOpacityStepper addTarget:self action:@selector(graphOpacityStepperMoved) forControlEvents:UIControlEventValueChanged];
+    [self updateGraphOpacityText];
     [self.btMouseSelector setSelectedSegmentIndex:currentSettings.btMouseSupport ? 1 : 0];
     [self.optimizeSettingsSelector setSelectedSegmentIndex:currentSettings.optimizeGames ? 1 : 0];
     [self.frameQueueSizeSlider setMinimumValue:1];
@@ -546,6 +554,20 @@ BOOL isCustomResolution(CGSize res) {
     [self.frameQueueSizeLabel setText:[NSString stringWithFormat:@"Frames to buffer: %ld", _frameQueueSize ]];
 }
 
+- (void) enableGraphsChanged {
+    [self.graphOpacityStepper setEnabled:[self.enableGraphsSelector selectedSegmentIndex] == 1 ? YES : NO];
+}
+
+- (void) graphOpacityStepperMoved {
+    assert(self.graphOpacityStepper.value >= 0 && self.graphOpacityStepper.value <= 100);
+    _graphOpacity = (int)self.graphOpacityStepper.value;
+    [self updateGraphOpacityText];
+}
+
+- (void) updateGraphOpacityText {
+    [self.enableGraphsLabel setText:[NSString stringWithFormat:@"Performance Graphs - Opacity: %ld%%", _graphOpacity ]];
+}
+
 - (void) saveSettings {
     DataManager* dataMan = [[DataManager alloc] init];
     NSInteger framerate = [self getChosenFrameRate];
@@ -578,7 +600,8 @@ BOOL isCustomResolution(CGSize res) {
                       btMouseSupport:btMouseSupport
                    absoluteTouchMode:absoluteTouchMode
                         statsOverlay:statsOverlay
-                        enableGraphs:enableGraphs];
+                        enableGraphs:enableGraphs
+                        graphOpacity:_graphOpacity];
 }
 
 - (void)didReceiveMemoryWarning {

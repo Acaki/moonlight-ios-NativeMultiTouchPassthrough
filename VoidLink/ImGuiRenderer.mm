@@ -13,8 +13,6 @@
 
 #import "imgui.h"
 #import "imgui_impl_metal.h"
-//#import "implot.h"
-//#import "implot3d.h"
 
 // ImGui code needs to live in this file because it's an Objective-C++ class, and can call C++ code.
 
@@ -23,27 +21,15 @@
 -(nonnull instancetype)initWithFrame:(CGRect)bounds
                            streamFps:(int)streamFps
                         enableGraphs:(BOOL)enableGraphs
+                        graphOpacity:(int)graphOpacity
 {
     self = [super init];
 
     _enableGraphs = enableGraphs;
+    _graphOpacity = (float)(graphOpacity / 100.0);
     _bounds = bounds;
     _device = MTLCreateSystemDefaultDevice();
     _commandQueue = [_device newCommandQueue];
-
-#if !defined(IMGUI_DISABLE)
-    if (enableGraphs) {
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        //ImPlot3D::CreateContext();
-        //ImPlot::CreateContext();
-        ImGuiIO& io = ImGui::GetIO(); (void)io;
-
-        ImGui::StyleColorsDark();
-
-        ImGui_ImplMetal_Init(_device);
-    }
-#endif
 
     // Graphs init, some still may be used for stats if enableGraphs is false
     const int graphs = PlotCount;
@@ -118,6 +104,35 @@
     return self;
 }
 
+-(void)ImGui_Init {
+    // self-contained startup for ImGui so it can be dynamically toggled easily
+
+#if !defined(IMGUI_DISABLE)
+    if (_enableGraphs && !_imguiRunning) {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+        // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+        ImGui::StyleColorsDark();
+
+        ImGui_ImplMetal_Init(_device);
+        _imguiRunning = YES;
+    }
+#endif
+}
+
+-(void)ImGui_Deinit {
+    if (_imguiRunning) {
+#if !defined(IMGUI_DISABLE)
+        ImGui_ImplMetal_Shutdown();
+        ImGui::DestroyContext();
+#endif
+        _imguiRunning = NO;
+    }
+}
+
 -(MTKView *)mtkView
 {
     return (MTKView *)self.view;
@@ -138,17 +153,39 @@
     self.mtkView.opaque = NO;
     self.mtkView.enableSetNeedsDisplay = NO;
 
-    if (!_enableGraphs) {
+    if (_enableGraphs) {
+        [self ImGui_Init];
+        self.mtkView.paused = NO;
+    }
+    else {
         self.mtkView.paused = YES;
     }
 }
 
+// start & stop are used to show/hide graphs when swiping stats in or out
+-(void)start {
+    [self ImGui_Init];
+    if (_enableGraphs) {
+        self.mtkView.paused = NO;
+    }
+}
+
+-(void)show {
+    [self.mtkView setHidden:NO];
+}
+
+-(void)hide {
+    [self.mtkView setHidden:YES];
+}
+
+-(void)stop {
+    self.mtkView.paused = YES;
+    [self ImGui_Deinit];
+}
+
+// Only called when mtkView.paused is false
 - (void)drawInMTKView:(MTKView *)view
 {
-    if (!_enableGraphs) {
-        return;
-    }
-
 #if !defined(IMGUI_DISABLE)
     ImGuiIO &io = ImGui::GetIO();
     io.DisplaySize.x = view.bounds.size.width;
@@ -173,10 +210,6 @@
     static bool show_demo_window = false;
     if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
-
-    // static bool show_implot3d_demo = false;
-    // if (show_implot3d_demo)
-    //    ImPlot3D::ShowDemoWindow(&show_implot3d_demo);
 
     // Custom Moonlight stuff goes here
     [self drawStatsGraphs];
@@ -213,12 +246,7 @@
 {
     [super viewDidDisappear:animated];
 
-#if !defined(IMGUI_DISABLE)
-    ImGui_ImplMetal_Shutdown();
-    //ImPlot::DestroyContext();
-    //ImPlot3D::DestroyContext();
-    ImGui::DestroyContext();
-#endif
+    [self ImGui_Deinit];
 }
 
 //-----------------------------------------------------------------------------------
@@ -305,8 +333,9 @@ inline static float getValue(void *buffer, int idx) {
 
     ImGuiIO &io = ImGui::GetIO();
 
-    LogOnce(LOG_I, @"Drawing graphs in %.1f x %.1f scale %.0f,%.0f",
-            io.DisplaySize.x, io.DisplaySize.y, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+    LogOnce(LOG_I, @"Drawing graphs in %.1f x %.1f scale %.0f,%.0f using opacity %.0f",
+            io.DisplaySize.x, io.DisplaySize.y, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y,
+            _graphOpacity);
 
     float graphW = 450.0f;
     float graphH = 45.0f;
@@ -379,7 +408,7 @@ inline static float getValue(void *buffer, int idx) {
         if (self.plots[i].scaleMax)
             scaleMax = self.plots[i].scaleMax;
         ImGui::PushID(i);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.29f, 0.48f, 0.54f)); // dark
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.29f, 0.48f, _graphOpacity)); // dark
         //ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.43f, 0.43f, 0.43f, 0.39f)); // classic
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // green
         ImGui::PlotLines("##xx", buffers[i], countF, 0, (countF > 0 ? label : "no data"), scaleMin, scaleMax, ImVec2(fullW, graphH));
@@ -436,7 +465,7 @@ inline static float getValue(void *buffer, int idx) {
         if (self.plots[i].scaleMax)
             scaleMax = self.plots[i].scaleMax;
         ImGui::PushID(i);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.29f, 0.48f, 0.54f)); // dark
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.29f, 0.48f, _graphOpacity)); // dark
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // green
         if (i == PLOT_FRAMETIME || i == PLOT_HOST_FRAMETIME) {
             // getValue() clips at max 50
