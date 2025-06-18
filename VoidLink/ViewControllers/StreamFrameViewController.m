@@ -226,13 +226,10 @@
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
 
-    // frame queue size needs to be passed into the ImGui view so it can be adjusted on the fly
-    // TODO: from settings
-    int frameDropTarget = 2;
-
     // Make a MetalKit view for ImGui
-    self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds streamFps:[_settings.framerate intValue]];
-    self.imguiView.desiredQueueSize = frameDropTarget;
+    self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds
+                                                streamFps:[_settings.framerate intValue]
+                                             enableGraphs:_settings.enableGraphs];
     [self.view addSubview:self.imguiView.mtkView];
     [self.view bringSubviewToFront:self.imguiView.mtkView];
 }
@@ -696,10 +693,6 @@
 
 - (void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics *)plotMetrics {
     return [self.imguiView observeFloatReturnMetrics:plotId value:value plotMetrics:plotMetrics];
-}
-
-- (int) getDesiredQueueSize {
-    return [self.imguiView getDesiredQueueSize];
 }
 
 - (void)didReceiveMemoryWarning

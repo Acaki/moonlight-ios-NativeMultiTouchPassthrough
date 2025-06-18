@@ -69,10 +69,6 @@ void DrCleanup(void)
     return bwTracker;
 }
 
--(FramePacingMode) getFramePacingMode {
-    return renderer.framePacingMode;
-}
-
 -(BOOL) getVideoStats:(video_stats_t*)stats
 {
     // We return lastVideoStats because it is a complete 1 second window
@@ -80,10 +76,12 @@ void DrCleanup(void)
     if (lastVideoStats.endTime != 0) {
         memcpy(stats, &lastVideoStats, sizeof(*stats));
         [videoStatsLock unlock];
+
+        // Pull in the separately-collected renderer stats
+        [renderer getAllStats:stats];
+
         return YES;
     }
-    
-    // No stats yet
     [videoStatsLock unlock];
     return NO;
 }
@@ -153,7 +151,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
             currentVideoStats.networkDroppedFrames += droppedFrames;
             currentVideoStats.totalFrames += droppedFrames;
 
-            Log(LOG_W, @"Dropped frame: %d", decodeUnit->frameNumber);
+            Log(LOG_W, @"Network dropped frame: %d", decodeUnit->frameNumber);
         }
         lastFrameNumber = decodeUnit->frameNumber;
     }
@@ -178,10 +176,9 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     [_callbacks observeFloat:PLOT_FRAME_BYTES value:(decodeUnit->fullLength / 1024.0)];
 
     // TODO: pull all of these in one call
-    currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
-    [renderer getDecodeMetrics:&currentVideoStats.decodeMetrics];
-    currentVideoStats.frameQueueSize = [renderer frameQueueSize];
-    currentVideoStats.framePacingMode = [renderer framePacingMode];
+//    currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
+//    [renderer getDecodeMetrics:&currentVideoStats.decodeMetrics];
+//    [renderer getFrameQueueMetrics:&currentVideoStats.frameQueueMetrics];
 
     PLENTRY entry = decodeUnit->bufferList;
     while (entry != NULL) {
@@ -503,7 +500,9 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
     _clCallbacks.stageFailed = ClStageFailed;
     _clCallbacks.connectionStarted = ClConnectionStarted;
     _clCallbacks.connectionTerminated = ClConnectionTerminated;
+#ifdef DEBUG
     _clCallbacks.logMessage = ClLogMessage;
+#endif
     _clCallbacks.rumble = ClRumble;
     _clCallbacks.connectionStatusUpdate = ClConnectionStatusUpdate;
     _clCallbacks.setHdrMode = ClSetHdrMode;

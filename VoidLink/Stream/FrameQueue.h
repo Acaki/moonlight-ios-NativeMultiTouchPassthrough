@@ -7,17 +7,22 @@
 @property (nonatomic) int frameNumber;
 @property (nonatomic) int frameType;
 @property (nonatomic) CMTime pts90;
+@property (nonatomic) CMTime duration;
 @property (nonatomic) CMSampleBufferRef sampleBuffer;
 
 - (instancetype)initWithSampleBuffer:(CMSampleBufferRef)sampleBuffer frameNumber:(int)frameNumber frameType:(int)frameType;
 - (CFTimeInterval)pts;
+- (CMTime)maybeSetDuration:(Frame *)nextFrame;
+- (BOOL)durationIsValid;
 - (void)dealloc;
 @end
 
 @interface FrameQueue : NSObject
 
 @property (nonatomic, assign) NSUInteger maxCapacity;
-@property (nonatomic) int desiredQueueSize;
+@property (nonatomic) NSInteger desiredQueueSize;
+@property (nonatomic) int frameRate;
+@property (nonatomic) CMTime ptsCorrection;
 @property (nonatomic) dispatch_semaphore_t semaphore;
 
 typedef enum {
@@ -25,13 +30,12 @@ typedef enum {
     DROP_ALL
 } FrameQueueDropMode;
 
-typedef BOOL (^FrameDropCallback)(Frame *frame, NSUInteger index);
+typedef BOOL (^FrameDropCallback)(Frame *frame, CMTime frameDuration, NSUInteger index);
 
 - (void)enqueue:(Frame *)frame;
 - (int)peekFrameType;
-- (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout;
 - (Frame *)dequeue;
-- (Frame *)dequeueAtIndex:(NSUInteger)index;
+- (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout;
 - (int)dropWithTarget:(int)frameDropTarget
              dropMode:(FrameQueueDropMode)dropMode
            usingBlock:(FrameDropCallback)block;

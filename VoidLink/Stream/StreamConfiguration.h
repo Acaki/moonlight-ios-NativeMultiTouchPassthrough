@@ -29,7 +29,6 @@
 @property int audioConfiguration;
 @property int supportedVideoFormats;
 @property BOOL multiController;
-@property BOOL useFramePacing;
 @property NSData* serverCert;
 
 @end

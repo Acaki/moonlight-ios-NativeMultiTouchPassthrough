@@ -6,6 +6,17 @@
 #import "FloatBuffer.h"
 #import "Plot.h"
 
+struct PlotDef {
+    FloatBuffer * _Nonnull buffer;
+    const char * _Nonnull title;
+    PlotLabelType labelType;
+    const char * _Nonnull unit;
+    double scaleMin, scaleMax, scaleTarget;
+    float minY;
+    float maxY;
+    BOOL hidden;
+};
+
 @interface ImGuiRenderer : UIViewController
 @end
 
@@ -16,11 +27,9 @@
 @property (nonatomic, strong) id <MTLCommandQueue> _Nonnull commandQueue;
 @property (nonatomic) struct PlotDef * _Nonnull plots;
 @property (nonatomic) FloatBuffer * _Nonnull frametimes;
-@property (nonatomic) int desiredQueueSize;
-@property (nonatomic) float graphAreaHeight;
+@property (nonatomic) BOOL enableGraphs;
 
--(nonnull instancetype) initWithFrame:(CGRect)bounds streamFps:(int)streamFps;
+-(nonnull instancetype) initWithFrame:(CGRect)bounds streamFps:(int)streamFps enableGraphs:(BOOL)enableGraphs;
 -(void) observeFloat:(int)plotId value:(CFTimeInterval)value;
 -(void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics * _Nullable)plotMetrics;
--(int) getDesiredQueueSize;
 @end

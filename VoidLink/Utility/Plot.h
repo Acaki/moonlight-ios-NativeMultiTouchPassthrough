@@ -1,4 +1,7 @@
-#import "FloatBuffer.h"
+typedef enum {
+    PACING_MODE_VSYNC,
+    PACING_MODE_PTS
+} FramePacingMode;
 
 typedef enum {
     PLOT_FRAMETIME = 0,
@@ -18,19 +21,28 @@ typedef enum {
     PLOT_LABEL_TOTAL_INT
 } PlotLabelType;
 
-struct PlotDef {
-    FloatBuffer * _Nonnull buffer;
-    const char * _Nonnull title;
-    PlotLabelType labelType;
-    const char * _Nonnull unit;
-    double scaleMin, scaleMax, scaleTarget;
-    float minY;
-    float maxY;
-    BOOL hidden;
-};
-
 typedef struct {
     float min;
     float max;
     float avg;
+    float total;
+    int nsamples;
+    float samplerate;
 } PlotMetrics;
+
+typedef struct {
+    CFTimeInterval startTime;
+    CFTimeInterval endTime;
+    int totalFrames;
+    int receivedFrames;
+    int networkDroppedFrames;
+    int totalHostProcessingLatency;
+    int framesWithHostProcessingLatency;
+    int maxHostProcessingLatency;
+    int minHostProcessingLatency;
+    CFTimeInterval displayRefreshRate;
+    PlotMetrics decodeMetrics;
+    PlotMetrics frameQueueMetrics;
+    PlotMetrics frameDropMetrics;
+    FramePacingMode framePacingMode;
+} video_stats_t;

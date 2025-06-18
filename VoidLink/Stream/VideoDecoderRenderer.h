@@ -14,17 +14,14 @@
 
 #include "Limelight.h"
 
-typedef enum {
-    PACING_MODE_VSYNC,
-    PACING_MODE_PTS
-} FramePacingMode;
-
 @interface VideoDecoderRenderer : NSObject
 
 @property (atomic, readonly) CFTimeInterval displayRefreshRate;
 @property (atomic, readonly) PlotMetrics decodeMetrics;
-@property (atomic, readonly) NSUInteger frameQueueSize;
+@property (atomic, readonly) PlotMetrics frameDropMetrics;
+@property (atomic, readonly) PlotMetrics frameQueueMetrics;
 @property (atomic, readonly) FramePacingMode framePacingMode;
+@property (atomic, readonly) CMTime ptsCorrection;
 
 - (id)initWithView:(UIView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio;
 
@@ -32,7 +29,7 @@ typedef enum {
 - (void)renderFrame:(Frame *)frame atTime:(CMTime)targetTime;
 - (void)cleanup;
 - (void)setHdrMode:(BOOL)enabled;
-- (void)getDecodeMetrics:(PlotMetrics *)decodeMetrics;
+- (void)getAllStats:(video_stats_t *)stats;
 
 - (int)submitDecodeBuffer:(unsigned char *)data
                    length:(int)length

@@ -26,6 +26,5 @@
 
 - (void) observeFloat:(int)plotId value:(CFTimeInterval)value;
 - (void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics *)plotMetrics;
-- (int) getDesiredQueueSize;
 
 @end

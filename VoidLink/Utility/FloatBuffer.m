@@ -1,13 +1,14 @@
 #import "FloatBuffer.h"
 
 @implementation FloatBuffer {
-    float *_buffer;       // raw C array holding up to capacity floats
-    int _head;            // index of next write (0…capacity−1)
-    int _count;           // how many valid entries are in the buffer (≤ capacity)
-    float _minValue;      // current minimum across all valid entries
-    float _maxValue;      // current maximum across all valid entries
-    double _sum;          // running sum of all valid entries (for average)
-    dispatch_queue_t _sq; // serial queue for thread safety
+    float *_buffer;               // raw C array holding up to capacity floats
+    CFTimeInterval *_timestamps;  // timestamp the entry was observed
+    int _head;                    // index of next write (0…capacity−1)
+    int _count;                   // how many valid entries are in the buffer (≤ capacity)
+    float _minValue;              // current minimum across all valid entries
+    float _maxValue;              // current maximum across all valid entries
+    double _sum;                  // running sum of all valid entries (for average)
+    dispatch_queue_t _sq;         // serial queue for thread safety
 }
 
 @synthesize capacity = _capacity;
@@ -29,6 +30,7 @@
         }
         _capacity = capacity;
         _buffer = calloc(capacity, sizeof(float));
+        _timestamps = calloc(capacity, sizeof(CFTimeInterval));
         _head = 0;
         _count = 0;
         _minValue = 0.0f;
@@ -63,6 +65,7 @@
 
     // 1) Write the new value into the “head” slot:
     _buffer[_head] = value;
+    _timestamps[_head] = CACurrentMediaTime();
     _head = (_head + 1) & (_capacity - 1); // wrap via bitmask
 
     // 2) Update count / sum / min / max
@@ -171,6 +174,31 @@
         *outMax = _maxValue;
 
     return _count;
+}
+
+- (void)copyMetrics:(PlotMetrics *)plotMetrics {
+    dispatch_sync(_sq, ^{
+        [self _unsafeCopyMetrics:plotMetrics];
+    });
+}
+
+- (void)_unsafeCopyMetrics:(PlotMetrics *)plotMetrics {
+    plotMetrics->min = _minValue;
+    plotMetrics->max = _maxValue;
+    plotMetrics->avg = (self->_count > 0) ? (float)(self->_sum / (double)self->_count) : 0.0f;
+    plotMetrics->total = (self->_count > 0) ? (float)(self->_sum) : 0.0f;
+    plotMetrics->nsamples = self->_count;
+    plotMetrics->samplerate = 0.0f;
+
+    if (plotMetrics->nsamples > 1) {
+        NSUInteger tail = (_head + _capacity - _count) & (_capacity - 1);
+        NSUInteger newest = (_head + _capacity - 1) & (_capacity - 1);
+        CFTimeInterval elapsed = _timestamps[newest] - _timestamps[tail];
+        if (elapsed > 0.0) {
+            // nsamples-1 intervals over elapsed seconds
+            plotMetrics->samplerate = (float)((plotMetrics->nsamples - 1) / elapsed);
+        }
+    }
 }
 
 // Debug output for use with %@

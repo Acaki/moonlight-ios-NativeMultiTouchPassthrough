@@ -25,7 +25,7 @@
     CODEC_PREF_HEVC,
     CODEC_PREF_AV1,
 } preferredCodec;
-@property (nonatomic) BOOL useFramePacing;
+@property (nonatomic, retain) NSNumber * frameQueueSize;
 @property (nonatomic) BOOL multiController;
 @property (nonatomic) BOOL swapABXYButtons;
 @property (nonatomic) BOOL playAudioOnPC;
@@ -34,6 +34,7 @@
 @property (nonatomic) BOOL btMouseSupport;
 @property (nonatomic) BOOL absoluteTouchMode;
 @property (nonatomic) BOOL statsOverlay;
+@property (nonatomic) BOOL enableGraphs;
 
 - (id) initFromSettings:(Settings*)settings;
 

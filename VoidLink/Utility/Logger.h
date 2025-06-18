@@ -12,6 +12,10 @@
 #import <dispatch/dispatch.h>
 #import <stdarg.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     LOG_D,
     LOG_I,
@@ -27,6 +31,10 @@ typedef enum {
 void Log(LogLevel level, NSString* fmt, ...);
 void LogTag(LogLevel level, NSString* tag, NSString* fmt, ...);
 
+#ifdef __cplusplus
+}
+#endif
+
 // LogOnce() is a one-time log message for use in hot areas of the code
 #define CONCAT(a,b)   CONCAT2(a,b)
 #define CONCAT2(a,b)  a##b
@@ -39,4 +47,12 @@ void LogTag(LogLevel level, NSString* tag, NSString* fmt, ...);
     });                                                             \
   } while (0)
 
+#endif
+
+// Disable all logging in release mode for performance
+#ifdef DEBUG
+    #define Log(level, fmt, ...) \
+        LogTag(level, NULL, fmt, ##__VA_ARGS__)
+#else
+    #define Log(level, fmt, ...) do {} while(0)
 #endif

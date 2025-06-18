@@ -7,7 +7,6 @@
 //
 
 #import "AbsoluteTouchHandler.h"
-#import "Logger.h"
 
 #include <Limelight.h>
 
@@ -50,8 +49,6 @@
     if ([[event allTouches] count] > 1) {
         return;
     }
-
-    Log(LOG_D, @"touchesBegan AbsoluteTouchHandler");
 
     UITouch* touch = [touches anyObject];
     CGPoint touchLocation = [touch locationInView:view];

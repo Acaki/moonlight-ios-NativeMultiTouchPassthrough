@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "Plot.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -41,6 +42,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (int)copyValuesIntoBuffer:(float *)outBuffer
                         min:(float * _Nullable)outMin
                         max:(float * _Nullable)outMax;
+
+/// Export metrics for use by the classic stats overlay
+- (void)copyMetrics:(PlotMetrics *)plotMetrics;
 
 @end
 

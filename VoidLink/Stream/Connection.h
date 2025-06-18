@@ -6,27 +6,13 @@
 //  Copyright (c) 2014 Moonlight Stream. All rights reserved.
 //
 
+#import "ConnectionCallbacks.h"
 #import "VideoDecoderRenderer.h"
 #import "StreamConfiguration.h"
 #import "BandwidthTracker.h"
+#import "Plot.h"
 
 #define CONN_TEST_SERVER "ios.conntest.moonlight-stream.org"
-
-typedef struct {
-    CFTimeInterval startTime;
-    CFTimeInterval endTime;
-    int totalFrames;
-    int receivedFrames;
-    int networkDroppedFrames;
-    int totalHostProcessingLatency;
-    int framesWithHostProcessingLatency;
-    int maxHostProcessingLatency;
-    int minHostProcessingLatency;
-    CFTimeInterval displayRefreshRate;
-    PlotMetrics decodeMetrics;
-    NSUInteger frameQueueSize;
-    FramePacingMode framePacingMode;
-} video_stats_t;
 
 @interface Connection : NSOperation <NSStreamDelegate>
 
