@@ -53,6 +53,7 @@ int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void*
     [renderer setupWithVideoFormat:videoFormat width:width height:height frameRate:redrawRate];
     lastFrameNumber = 0;
     activeVideoFormat = videoFormat;
+    Log(LOG_I, @"Active video format: 0x%x", activeVideoFormat);
     memset(&currentVideoStats, 0, sizeof(currentVideoStats));
     memset(&lastVideoStats, 0, sizeof(lastVideoStats));
     bwTracker = [[BandwidthTracker alloc] initWithWindowSeconds:10 bucketIntervalMs:250];
@@ -92,8 +93,12 @@ void DrCleanup(void)
     {
         case VIDEO_FORMAT_H264:
             return @"H.264";
+        case VIDEO_FORMAT_H264_HIGH8_444:
+            return @"H.264 4:4:4";
         case VIDEO_FORMAT_H265:
             return @"HEVC";
+        case VIDEO_FORMAT_H265_REXT8_444:
+            return @"HEVC 4:4:4";
         case VIDEO_FORMAT_H265_MAIN10:
             if (LiGetCurrentHostDisplayHdrMode()) {
                 return @"HEVC Main 10 HDR";
@@ -101,14 +106,30 @@ void DrCleanup(void)
             else {
                 return @"HEVC Main 10 SDR";
             }
+        case VIDEO_FORMAT_H265_REXT10_444:
+            if (LiGetCurrentHostDisplayHdrMode()) {
+                return @"HEVC Main 10 HDR 4:4:4";
+            }
+            else {
+                return @"HEVC Main 10 SDR 4:4:4";
+            }
         case VIDEO_FORMAT_AV1_MAIN8:
             return @"AV1";
+        case VIDEO_FORMAT_AV1_HIGH8_444:
+            return @"AV1 4:4:4";
         case VIDEO_FORMAT_AV1_MAIN10:
             if (LiGetCurrentHostDisplayHdrMode()) {
                 return @"AV1 10-bit HDR";
             }
             else {
                 return @"AV1 10-bit SDR";
+            }
+        case VIDEO_FORMAT_AV1_HIGH10_444:
+            if (LiGetCurrentHostDisplayHdrMode()) {
+                return @"AV1 10-bit HDR 4:4:4";
+            }
+            else {
+                return @"AV1 10-bit SDR 4:4:4";
             }
         default:
             return @"UNKNOWN";

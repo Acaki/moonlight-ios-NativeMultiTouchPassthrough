@@ -29,6 +29,7 @@
 - (void)renderFrame:(Frame *)frame atTime:(CMTime)targetTime;
 - (void)cleanup;
 - (void)setHdrMode:(BOOL)enabled;
+- (void)safeCopyMetricsTo:(PlotMetrics *)dst from:(PlotMetrics *)src;
 - (void)getAllStats:(video_stats_t *)stats;
 
 - (int)submitDecodeBuffer:(unsigned char *)data

@@ -49,6 +49,9 @@
     UIScrollView *_scrollView;
     BOOL _userIsInteracting;
     CGSize _keyboardSize;
+    PlotMetrics _decodeMetrics;
+    PlotMetrics _frameDropMetrics;
+    PlotMetrics _frameQueueMetrics;
 
 #if !TARGET_OS_TV
     UIScreenEdgePanGestureRecognizer *_exitSwipeRecognizer;

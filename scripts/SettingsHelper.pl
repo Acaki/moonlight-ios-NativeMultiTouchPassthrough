@@ -175,9 +175,11 @@ sub do_output {
     # spacing
     my $label_to_control = 29;
     my $control_to_label = 35;
+    my $label_to_label =   43;
     my $slider_to_next   = 29;
     my $view_to_next     = 43;
     my $seen_rdv = 0;
+    my $last = q{};
 
     printf STDERR "%30s    %s    %s\n\n", q{}, "auto", "current";
 
@@ -190,10 +192,15 @@ sub do_output {
         $rect->set_att(y => $y);
 
         if ($type eq "label") {
-            my $text = $e->att('text') // "(unknown label)";
+            my $text = $e->att('userLabel') // $e->att('text') // "(unknown label)";
             printf STDERR "%30s    %d    %4d\n", $text, $y, $orig_y;
 
-            $y += $label_to_control;
+            if ($text =~ /Caption/) { # space after captions is a bit larger
+                $y += $label_to_label;
+            }
+            else {
+                $y += $label_to_control;
+            }
         }
         elsif ($type eq "control") {
             my ($userLabel) = $e->att('userLabel') // "(unknown control)";
@@ -215,6 +222,7 @@ sub do_output {
             printf STDERR "%30s    %d    %4d\n", "view", $y, $orig_y;
             $y += $view_to_next;
         }
+        $last = $type;
     }
 
     # Output the entire XML with our changes

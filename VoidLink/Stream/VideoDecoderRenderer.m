@@ -32,6 +32,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                               int write_seq_header);
 
 @implementation VideoDecoderRenderer {
+    dispatch_queue_t _sq;
     StreamView* _view;
     id<ConnectionCallbacks> _callbacks;
     float _streamAspectRatio;
@@ -107,6 +108,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     self = [super init];
 
+    _sq = dispatch_queue_create("com.moonlight.VideoDecoderRenderer", DISPATCH_QUEUE_SERIAL);
+
     _view = view;
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
@@ -174,7 +177,13 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 #if TARGET_OS_SIMULATOR
     NSNumber *pixelFormat = @(kCVPixelFormatType_32BGRA);
 #else
-    NSNumber *pixelFormat = @(kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+    NSNumber *pixelFormat = nil;
+    if (self->videoFormat & VIDEO_FORMAT_MASK_YUV444) {
+        pixelFormat = @(kCVPixelFormatType_444YpCbCr10BiPlanarVideoRange);
+    }
+    else {
+        pixelFormat = @(kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+    }
 #endif
 
     NSDictionary *destinationPixelBufferAttributes = @{(id)kCVPixelBufferPixelFormatTypeKey : pixelFormat};
@@ -216,23 +225,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     CFTimeInterval deadline = link.targetTimestamp;
     _displayRefreshRate = 1.0f / link.duration;
     static CFTimeInterval lastTargetLocal = 0.0f;
-    static CFTimeInterval lastDeadline = 0.0f;
-
-    CFTimeInterval dl0 = CACurrentMediaTime();
-    static CFTimeInterval avgOverhead = 0.004f; // averaged each callback
-
-    // XXX need to measure overhead better
-    static int skippedDisplayLink = 0;
-    if (lastDeadline > 0) {
-        CFTimeInterval frametime = deadline - lastDeadline;
-        if (frametime > link.duration + 0.001) {
-            // We skipped at least one callback
-            skippedDisplayLink++;
-            Log(LOG_W, @"[%.3f] !! displayLink was skipped (%f > %f) (total %d), time between frames: %.3f ms",
-                deadline, frametime, link.duration, skippedDisplayLink, frametime * 1000.0);
-        }
-    }
-    lastDeadline = deadline;
 
     [self checkDisplayLayer];
 
@@ -264,26 +256,30 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     [self->_callbacks observeFloatReturnMetrics:PLOT_DROPPED
                                           value:framesDropped
                                     plotMetrics:&frameDropMetrics];
-    self->_frameDropMetrics.min = frameDropMetrics.min;
-    self->_frameDropMetrics.max = frameDropMetrics.max;
-    self->_frameDropMetrics.avg = frameDropMetrics.avg;
+    [self safeCopyMetricsTo:&_frameDropMetrics from:&frameDropMetrics];
 
-    // Get the next frame or wait if necessary. Aim to present the frame 3ms before deadline to allow
-    // time for processing. If no frame arrives the previous one will be redisplayed automatically.
-    frame = [frameQueue dequeueWithTimeout:(deadline - avgOverhead)];
+    CFTimeInterval dl0 = CACurrentMediaTime();
+    static CFTimeInterval avgOverhead = 0.004f; // averaged each callback
+    CFTimeInterval waitFor = deadline - dl0 - avgOverhead;
+    if (waitFor < 0.001f) {
+        waitFor = 0.001f;
+    }
+
+    // Get the next frame or wait if necessary. If no frame arrives the previous one will be redisplayed automatically.
+    frame = [frameQueue dequeueWithTimeout:waitFor];
     if (frame != nil) {
         // Option 1. timestamp the frame using now(), this results in very jittery frametime
         // graph, but frames are still output basically the same as targeting deadline
         // CFTimeInterval targetLocal = CACurrentMediaTime();
         // [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
 
-        // Option 2, snap exactly to deadline, even though it won't really be displayed until deadline * 2
+        // Option 2, snap exactly to next deadline (double-buffering means it will be displayed at end of next frame)
         CFTimeInterval targetLocal = deadline + link.duration;
         [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
 
 #ifdef DISPLAYLINK_VERBOSE
-        Log(LOG_I, @"[%.3f] rendering frame %d @ %.3f, overhead %.3f ms, queue size %d",
-            deadline, frame.frameNumber, targetLocal, avgOverhead * 1000.0, [frameQueue count]);
+        Log(LOG_I, @"[%.3f] rendering frame %d @ %.3f, waitFor %.1f ms, overhead %.3f ms, queue size %d",
+            deadline, frame.frameNumber, targetLocal, waitFor * 1000.0, avgOverhead * 1000.0, [frameQueue count]);
 #endif
 
         // Update metrics
@@ -291,11 +287,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             [self->_callbacks observeFloat:PLOT_FRAMETIME value:(targetLocal - lastTargetLocal) * 1000.0];
         }
         lastTargetLocal = targetLocal;
-    }
 
-    // moving average of how much time displayLink is taking. This is used to wait efficiently.
-    const double alpha = 0.25f;
-    avgOverhead = ((CACurrentMediaTime() - dl0) * alpha) + (avgOverhead * (1.0 - alpha));
+        // moving average of how much time displayLink needs after dequeuing a frame.
+        // This is used to avoid overshooting a vsync by waiting too long.
+        const double alpha = 0.25f;
+        avgOverhead = ((CACurrentMediaTime() - dl0) * alpha) + (avgOverhead * (1.0 - alpha));
+    }
 }
 
 #pragma mark DisplayLink - RTP PTS timestamp-based frame pacing (experimental)
@@ -358,9 +355,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     [self->_callbacks observeFloatReturnMetrics:PLOT_DROPPED
                                           value:framesDropped
                                     plotMetrics:&frameDropMetrics];
-    self->_frameDropMetrics.min = frameDropMetrics.min;
-    self->_frameDropMetrics.max = frameDropMetrics.max;
-    self->_frameDropMetrics.avg = frameDropMetrics.avg;
+    [self safeCopyMetricsTo:&_frameDropMetrics from:&frameDropMetrics];
 
     // Process the next frame for display
     frame = [frameQueue dequeueWithTimeout:(deadline - CACurrentMediaTime() - 0.002f)];
@@ -975,18 +970,14 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
           [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES
                                                 value:[self->frameQueue count]
                                           plotMetrics:&frameQueueMetrics];
-          self->_frameQueueMetrics.min = frameQueueMetrics.min;
-          self->_frameQueueMetrics.max = frameQueueMetrics.max;
-          self->_frameQueueMetrics.avg = frameQueueMetrics.avg;
+          [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
 
           // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
           static PlotMetrics decodeMetrics = {};
           [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE
                                                 value:(CACurrentMediaTime() - decodeStartTime) * 1000.0
                                           plotMetrics:&decodeMetrics];
-          self->_decodeMetrics.min = decodeMetrics.min;
-          self->_decodeMetrics.max = decodeMetrics.max;
-          self->_decodeMetrics.avg = decodeMetrics.avg;
+          [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
 
           // It's important we capture these metrics on the incoming thread, so they aren't affected by Moonlight choosing to drop frames.
           static CFTimeInterval lastHostFrame = 0.0f;
@@ -1071,12 +1062,23 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 }
 
+- (void)safeCopyMetricsTo:(PlotMetrics *)dst from:(PlotMetrics *)src {
+    if (dst != nil && src != nil) {
+        dispatch_sync(_sq, ^{
+            memcpy(dst, src, sizeof(PlotMetrics));
+        });
+    }
+}
+
 - (void)getAllStats:(video_stats_t *)stats {
     stats->displayRefreshRate = _displayRefreshRate;
     stats->framePacingMode = _framePacingMode;
-    memcpy(&stats->decodeMetrics, &_decodeMetrics, sizeof(PlotMetrics));
-    memcpy(&stats->frameQueueMetrics, &_frameQueueMetrics, sizeof(PlotMetrics));
-    memcpy(&stats->frameDropMetrics, &_frameDropMetrics, sizeof(PlotMetrics));
+
+    dispatch_sync(_sq, ^{
+        memcpy(&stats->decodeMetrics, &_decodeMetrics, sizeof(PlotMetrics));
+        memcpy(&stats->frameQueueMetrics, &_frameQueueMetrics, sizeof(PlotMetrics));
+        memcpy(&stats->frameDropMetrics, &_frameDropMetrics, sizeof(PlotMetrics));
+    });
 }
 
 @end

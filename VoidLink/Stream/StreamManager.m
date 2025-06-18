@@ -176,7 +176,8 @@
                                 (float)stats.totalHostProcessingLatency / stats.framesWithHostProcessingLatency / 10.f];
     }
     else {
-        hostProcessingString = @"";
+        // If all frames are duplicates this can happen, but let's avoid having the whole stats area change height
+        hostProcessingString = @"Host processing latency min/max/avg: -/-/- ms\n";
     }
     
     float interval = stats.endTime - stats.startTime;
@@ -189,7 +190,7 @@
             "Bitrate: %.1f Mbps, Peak (%lus): %.1f\n"
             "%@"
             "Frames in buffer: %.1f, Pacing mode: %@\n"
-            "Frames dropped: %.1f%% by frame pacer, %.1f%% lost to network\n"
+            "Frames dropped: %.1f%% network packet loss, %.1f%% frame pacer\n"
             "Average network latency: %@\n"
             "Decode time: %.2f/%.2f/%.2f ms",
             _config.width,
@@ -199,11 +200,10 @@
             [_connection getActiveCodecName],
             avgVideoMbps, [_connection getBwTracker].windowSeconds, peakVideoMbps,
             hostProcessingString,
-            // stats.networkDroppedFrames / interval,
             stats.frameQueueMetrics.avg,
             stats.framePacingMode == PACING_MODE_VSYNC ? @"vsync" : @"host pts",
-            (stats.frameDropMetrics.total / stats.frameDropMetrics.nsamples) * 100.0,
             (stats.networkDroppedFrames / stats.totalFrames) * 100.0,
+            stats.frameDropMetrics.nsamples > 0 ? (stats.frameDropMetrics.total / stats.frameDropMetrics.nsamples) * 100.0 : 0.0f,
             latencyString,
             stats.decodeMetrics.min, stats.decodeMetrics.max, stats.decodeMetrics.avg];
 }
