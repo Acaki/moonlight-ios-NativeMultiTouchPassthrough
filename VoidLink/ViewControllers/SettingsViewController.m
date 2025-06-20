@@ -168,7 +168,29 @@ BOOL isCustomResolution(CGSize res) {
     if (!isCustomResolution(resolutionTable[6])) {
         resolutionTable[6] = CGSizeMake(0, 0);
     }
-    
+
+    // Customize framerate list for ProMotion devices
+    if ([[UIScreen mainScreen] maximumFramesPerSecond] >= 90) {
+        UIDevice *device = [UIDevice currentDevice];
+        if (device.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+            // iPad with ProMotion, available refresh rates are 120, 60, 40, 30, 24
+            [self.framerateSelector setEnabled:NO forSegmentAtIndex:2]; // disable 90fps
+            [self.framerateSelector setEnabled:YES forSegmentAtIndex:3]; // enable 120
+        }
+        else if (device.userInterfaceIdiom == UIUserInterfaceIdiomPhone) {
+            // iPhone with ProMotion, they usually have 120, 80, 60, 48, 40, 30, 24, and lower
+            [self.framerateSelector setTitle:@"80 FPS" forSegmentAtIndex:2]; // change 90 to 80
+            [self.framerateSelector setEnabled:YES forSegmentAtIndex:2]; // enable 80
+            [self.framerateSelector setEnabled:YES forSegmentAtIndex:3]; // enable 120
+        }
+        else if (@available(iOS 17.0, *)) {
+            if (device.userInterfaceIdiom == UIUserInterfaceIdiomVision) {
+                // Vision Pro supports 90, 96, 100
+                [self.framerateSelector setTitle:@"100 FPS" forSegmentAtIndex:3]; // change 120 to 100
+            }
+        }
+    }
+
     NSInteger framerate;
     switch ([currentSettings.framerate integerValue]) {
         case 30:
@@ -193,18 +215,6 @@ BOOL isCustomResolution(CGSize res) {
             resolution = i;
             break;
         }
-    }
-
-    // Only show the 90 & 120 FPS options if we have a > 60-ish Hz display
-    bool enableHighFramerate = false;
-    if (@available(iOS 10.3, tvOS 10.3, *)) {
-        if ([UIScreen mainScreen].maximumFramesPerSecond > 62) {
-            enableHighFramerate = true;
-        }
-    }
-    if (!enableHighFramerate) {
-        [self.framerateSelector setEnabled:NO forSegmentAtIndex:2];
-        [self.framerateSelector setEnabled:NO forSegmentAtIndex:3];
     }
 
     // Disable codec selector segments for unsupported codecs
@@ -488,15 +498,30 @@ BOOL isCustomResolution(CGSize res) {
 }
 
 - (NSInteger) getChosenFrameRate {
+    int fpsSegment2 = 90;
+    int fpsSegment3 = 120;
+
+    if ([[UIScreen mainScreen] maximumFramesPerSecond] >= 90) {
+        UIDevice *device = [UIDevice currentDevice];
+        if (device.userInterfaceIdiom == UIUserInterfaceIdiomPhone) {
+            fpsSegment2 = 80; // change 90 to 80
+        }
+        else if (@available(iOS 17.0, *)) {
+            if (device.userInterfaceIdiom == UIUserInterfaceIdiomVision) {
+                fpsSegment3 = 100; // change 120 to 100
+            }
+        }
+    }
+
     switch ([self.framerateSelector selectedSegmentIndex]) {
         case 0:
             return 30;
         case 1:
             return 60;
         case 2:
-            return 90;
+            return fpsSegment2;
         case 3:
-            return 120;
+            return fpsSegment3;
         default:
             abort();
     }

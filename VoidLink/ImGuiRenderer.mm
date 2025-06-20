@@ -1,4 +1,5 @@
 #import "ImGuiRenderer.h"
+#import <AVFoundation/AVFoundation.h>
 #import <Metal/Metal.h>
 
 // This will fully disable ImGui by compiling it out. The in-app setting enableGraphs
@@ -333,12 +334,9 @@ inline static float getValue(void *buffer, int idx) {
 
     ImGuiIO &io = ImGui::GetIO();
 
-    LogOnce(LOG_I, @"Drawing graphs in %.1f x %.1f scale %.0f,%.0f using opacity %.0f",
-            io.DisplaySize.x, io.DisplaySize.y, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y,
-            _graphOpacity);
-
-    float graphW = 450.0f;
-    float graphH = 45.0f;
+    // Try to make the graphs suck less on common device sizes
+    float graphW = 0.0f;
+    float graphH = 0.0f;
     switch ((int)io.DisplaySize.x) {
         case 1920: // ATV 4K 1920x1080 2x
             graphW = 525.0f; graphH = 80.0f; break;
@@ -350,10 +348,25 @@ inline static float getValue(void *buffer, int idx) {
             graphW = 379.0f; graphH = 36.0f; break;
         case 1133: // iPad Mini 1133x744 2x
             graphW = 360.0f; graphH = 33.0f; break;
+        case 874: // iPhone 16 Pro 874x402 3x
+            graphW = 275.0f; graphH = 45.0f; break;
+        // TODO:
         default:
-            graphW = io.DisplaySize.x * 0.327f;
-            graphH = io.DisplaySize.y * 0.044f;
+            float x = io.DisplaySize.x;
+            float y = io.DisplaySize.y;
+            if (io.DisplayFramebufferScale.x > 2.0f) {
+                x = x * io.DisplayFramebufferScale.x / 2.0f;
+                y = y * io.DisplayFramebufferScale.y / 2.0f;
+            }
+            graphW = x * 0.327f;
+            graphH = y * 0.044f;
     }
+
+    LogOnce(LOG_I, @"Drawing graphs of size %.1f x %.1f in viewport %.1f x %.1f scale %.0f,%.0f using opacity %.2f",
+            graphW, graphH,
+            io.DisplaySize.x, io.DisplaySize.y,
+            io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y,
+            _graphOpacity);
 
     // Left side - 2 graphs
     ImVec2 windowSize(graphW, (graphH * 3));
@@ -482,3 +495,4 @@ inline static float getValue(void *buffer, int idx) {
 }
 
 @end
+
