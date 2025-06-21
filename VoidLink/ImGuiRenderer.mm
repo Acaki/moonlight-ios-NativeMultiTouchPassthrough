@@ -86,7 +86,7 @@
     };
 
     _plots[PLOT_DROPPED] = {
-        .title     = "Frames dropped for pacing",
+        .title     = "Frames dropped",
         .labelType = PLOT_LABEL_TOTAL_INT,
         .unit      = "",
         .scaleTarget = 2,

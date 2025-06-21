@@ -1,11 +1,12 @@
 #import <VideoToolbox/VideoToolbox.h>
 #import <os/lock.h>
 #import <pthread.h>
+#import <Limelight.h>
 #import "FrameQueue.h"
 
 // The logging in this class is very heavy
 #if !defined(NDEBUG)
-# define FRAME_QUEUE_VERBOSE
+//# define FRAME_QUEUE_VERBOSE
 #endif
 
 static inline NSString *FQQoSString(qos_class_t qos) {
@@ -32,69 +33,12 @@ static inline NSString *FQLogPrefix(void) {
   #define FQLog(level, fmt, ...) do {} while(0)
 #endif
 
-#pragma mark Frame
-
-@implementation Frame
-
-- (instancetype)initWithSampleBuffer:(CMSampleBufferRef)sampleBuffer frameNumber:(int)frameNumber frameType:(int)frameType {
-    if (self = [super init]) {
-        _frameNumber  = frameNumber;
-        _frameType    = frameType;
-        _sampleBuffer = sampleBuffer;
-
-        // 90 kHz pts from RTP
-        _pts90        = CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer);
-        _duration     = kCMTimeInvalid;
-
-//        FQLog(LOG_I, @"init Frame %d - type %@ [host pts %.3f]",
-//            _frameNumber, _frameType == FRAME_TYPE_IDR ? @"IDR" : @"P",
-//            CMTimeGetSeconds(_pts90));
-    }
-    return self;
-}
-
-- (CFTimeInterval)pts {
-    return CMTimeGetSeconds(_pts90);
-}
-
-// TODO: rethink this using better data structure
-- (CMTime)maybeSetDuration:(Frame *)next {
-    if (next.frameNumber == _frameNumber + 1) {
-        _duration = CMTimeSubtract(next.pts90, _pts90);
-        _duration.flags = kCMTimeFlags_Valid;
-
-        FQLog(LOG_I, @"previous frame [%d / %.3f] got duration %.3f ms",
-            CACurrentMediaTime(), _frameNumber, CMTimeGetSeconds(_pts90),
-            CMTimeGetSeconds(_duration) * 1000.0);
-    }
-    return _duration;
-}
-
-- (BOOL)durationIsValid {
-    return CMTIME_IS_VALID(_duration);
-}
-
-- (void)dealloc {
-    //FQLog(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, CMTimeGetSeconds(_pts90));
-
-    // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
-    // so we don't need to CFRetain in init, but do need to release it
-    CFRelease(_sampleBuffer);
-}
-
-#ifdef FRAME_QUEUE_VERBOSE
-- (NSString *)description {
-    return [NSString stringWithFormat:@"{%d / %f}", self.frameNumber, self.pts];
-}
-#endif
-
-@end
-
 #pragma mark FrameQueue
 
 @implementation FrameQueue {
-    NSMutableArray<Frame *> *_queue;
     os_unfair_lock _lock;
+    NSMutableArray<Frame *> *_queue;
+    NSInteger _lwm; // lowest queue.count value allowed. When wantsDuration is true, lwm is 1.
 }
 
 - (instancetype)init {
@@ -102,12 +46,26 @@ static inline NSString *FQLogPrefix(void) {
         _maxCapacity      = 15;
         _desiredQueueSize = 2;
         _frameRate        = 60;
+        _framesIn         = 0;
         _ptsCorrection    = CMTimeMake(0, 90000);
+        _lwm              = 0;
+        _wantsDuration    = NO;
         _queue            = [NSMutableArray arrayWithCapacity:_maxCapacity];
         _lock             = OS_UNFAIR_LOCK_INIT;
         _semaphore        = dispatch_semaphore_create(0);
+
+        if (_wantsDuration) {
+            _lwm = 1; // queue count is not allowed to drop to 0
+        }
     }
     return self;
+}
+
+- (NSInteger)trueQueueSize {
+    if (_wantsDuration) {
+        return _desiredQueueSize + 1;
+    }
+    return _desiredQueueSize;
 }
 
 - (void)enqueue:(Frame *)frame {
@@ -120,7 +78,7 @@ static inline NSString *FQLogPrefix(void) {
             if (f.frameType != FRAME_TYPE_IDR) {
                 [toDrop addIndex:i];
                 if ([f durationIsValid]) {
-                    _ptsCorrection = CMTimeAdd(_ptsCorrection, f.duration);
+                    _ptsCorrection = CMTimeAdd(_ptsCorrection, f.duration90);
                 }
                 else {
                     // count unknowns as 1 frametime
@@ -140,6 +98,7 @@ static inline NSString *FQLogPrefix(void) {
 //    }
 
     [_queue addObject:frame];
+    _framesIn++;
     FQLog(LOG_I, @"[-> %d / %f] enqueue frame, queue size %d", frame.frameNumber, frame.pts, _queue.count);
 
     os_unfair_lock_unlock(&_lock);
@@ -148,14 +107,19 @@ static inline NSString *FQLogPrefix(void) {
 
 - (Frame *)dequeue {
     os_unfair_lock_lock(&_lock);
-    Frame *selected = nil;
-    if (_queue.count > 0) {
-        selected = _queue.firstObject;
+    Frame *frame = nil;
+    if (_queue.count > _lwm) {
+        frame = _queue.firstObject;
         [_queue removeObjectAtIndex:0];
-        FQLog(LOG_I, @"[<- %d / %f] dequeue frame, queue size %d", selected.frameNumber, selected.pts, _queue.count);
+        if (_wantsDuration) {
+            // firstObject now contains the next frame
+            [frame setDurationFromNext:_queue.firstObject];
+        }
+        FQLog(LOG_I, @"[<- %d / %f dur %.3f] dequeue frame, queue size %d",
+              frame.frameNumber, frame.pts, frame.duration * 1000.0, _queue.count);
     }
     os_unfair_lock_unlock(&_lock);
-    return selected;
+    return frame;
 }
 
 - (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout {
@@ -260,6 +224,23 @@ static inline NSString *FQLogPrefix(void) {
     os_unfair_lock_lock(&_lock);
     [_queue removeAllObjects];
     os_unfair_lock_unlock(&_lock);
+}
+
+- (CFTimeInterval)estimatedFramerate {
+    CFTimeInterval now = CACurrentMediaTime();
+    static CFTimeInterval lastEstimated = 0.0f;
+    static int lastEstimatedFrames = 0;
+    static CFTimeInterval estimate = 0.0f;
+
+    if (now - lastEstimated > 1.0) {
+        os_unfair_lock_lock(&_lock);
+        estimate = (_framesIn - lastEstimatedFrames) / (now - lastEstimated);
+        lastEstimated = now;
+        lastEstimatedFrames = _framesIn;
+        os_unfair_lock_unlock(&_lock);
+    }
+
+    return estimate;
 }
 
 #ifdef FRAME_QUEUE_VERBOSE

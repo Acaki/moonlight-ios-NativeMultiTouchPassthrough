@@ -196,11 +196,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     [bwTracker addBytes:decodeUnit->fullLength];
     [_callbacks observeFloat:PLOT_FRAME_BYTES value:(decodeUnit->fullLength / 1024.0)];
 
-    // TODO: pull all of these in one call
-//    currentVideoStats.displayRefreshRate = [renderer displayRefreshRate];
-//    [renderer getDecodeMetrics:&currentVideoStats.decodeMetrics];
-//    [renderer getFrameQueueMetrics:&currentVideoStats.frameQueueMetrics];
-
     PLENTRY entry = decodeUnit->bufferList;
     while (entry != NULL) {
         // Submit parameter set NALUs directly since no copy is required by the decoder
@@ -320,7 +315,7 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
         // Provide backpressure on the queue to ensure too many frames don't build up
         // in SDL's audio queue.
         while (SDL_GetQueuedAudioSize(audioDevice) / audioFrameSize > 10) {
-            SDL_Delay(1);
+            [NSThread sleepForTimeInterval:0.001f];
         }
         
         if (SDL_QueueAudio(audioDevice,

@@ -6,6 +6,7 @@
 //  Copyright (c) 2014 Moonlight Stream. All rights reserved.
 //
 
+@import AVFoundation;
 @import VideoToolbox;
 
 #import "DataManager.h"
@@ -32,7 +33,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                               int write_seq_header);
 
 @implementation VideoDecoderRenderer {
-    dispatch_queue_t _sq;
+    dispatch_queue_t _sq, _vtq;
     StreamView* _view;
     id<ConnectionCallbacks> _callbacks;
     float _streamAspectRatio;
@@ -40,6 +41,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     AVSampleBufferDisplayLayer* displayLayer;
     int videoFormat;
     int frameRate;
+    NSInteger maxRefreshRate;
 
     NSMutableArray *parameterSetBuffers;
     NSData *masteringDisplayColorVolume;
@@ -108,7 +110,12 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     self = [super init];
 
-    _sq = dispatch_queue_create("com.moonlight.VideoDecoderRenderer", DISPATCH_QUEUE_SERIAL);
+    _sq = dispatch_queue_create("com.moonlight.VideoDecoderRenderer",
+                                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
+
+    // Video decoder needs to run at the highest priority since DisplayLink waits on it
+    _vtq = dispatch_queue_create("com.moonlight.VideoDecoderRenderer.VTDecoder",
+                                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
 
     _view = view;
     _callbacks = callbacks;
@@ -118,6 +125,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     parameterSetBuffers = [[NSMutableArray alloc] init];
     frameQueue = [[FrameQueue alloc] init];
     seenFrameOne = NO;
+    maxRefreshRate = [[UIScreen mainScreen] maximumFramesPerSecond];
 
     DataManager* dataMan = [[DataManager alloc] init];
 
@@ -139,8 +147,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     self->videoFormat = videoFormat;
     self->frameRate = frameRate;
 
-    [self->frameQueue setFrameRate:frameRate];
-
     switch (_framePacingMode) {
         case PACING_MODE_VSYNC:
             // Deliver 1 frame at each vsync interval.
@@ -152,14 +158,14 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
             // Similar to vsync mode, but frames are timed using the server's frame capture timestamp for scheduling.
             // Requires at least Sunshine 2025.6
             // Drop frames intelligently to maintain chosen queue size.
-            // Performs about the same as vsync mode on iOS/tvOS due to fixed refresh rates. Probably great on a VRR display.
-            // TODO: ProMotion support may benefit from this pacing mode
+            // Performs about the same as vsync mode on iOS/tvOS due to fixed refresh rates.
+            // TODO: VRR on PC may benefit from this pacing mode
             _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingTimestamps:)];
             break;
     }
 
     if (@available(iOS 15.0, tvOS 15.0, *)) {
-        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
+        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, maxRefreshRate, self->frameRate);
     }
     else {
         _displayLink.preferredFramesPerSecond = self->frameRate;
@@ -222,9 +228,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 // to present the most recent frame each vsync, while retaining a buffer of 1-2 frames. Frames are dropped from the queue
 // if it grows too large, using an alternating pattern.
 - (void)framePacingUsingQueue:(CADisplayLink *)link {
+    CFTimeInterval start = link.timestamp;
     CFTimeInterval deadline = link.targetTimestamp;
-    _displayRefreshRate = 1.0f / link.duration;
     static CFTimeInterval lastTargetLocal = 0.0f;
+    _displayRefreshRate = 1.0f / (deadline - start);
 
     [self checkDisplayLayer];
 
@@ -268,18 +275,14 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     // Get the next frame or wait if necessary. If no frame arrives the previous one will be redisplayed automatically.
     frame = [frameQueue dequeueWithTimeout:waitFor];
     if (frame != nil) {
-        // Option 1. timestamp the frame using now(), this results in very jittery frametime
-        // graph, but frames are still output basically the same as targeting deadline
-        // CFTimeInterval targetLocal = CACurrentMediaTime();
-        // [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
+        [self renderFrame:frame];
 
-        // Option 2, snap exactly to next deadline (double-buffering means it will be displayed at end of next frame)
-        CFTimeInterval targetLocal = deadline + link.duration;
-        [self renderFrame:frame atTime:CMTimeMakeWithSeconds(targetLocal, NSEC_PER_SEC)];
+        // For frametime graph purposes, use deadline
+        CFTimeInterval targetLocal = deadline;
 
 #ifdef DISPLAYLINK_VERBOSE
-        Log(LOG_I, @"[%.3f] rendering frame %d @ %.3f, waitFor %.1f ms, overhead %.3f ms, queue size %d",
-            deadline, frame.frameNumber, targetLocal, waitFor * 1000.0, avgOverhead * 1000.0, [frameQueue count]);
+        Log(LOG_I, @"[%.3f] rendering frame %d, waitFor %.3f ms, overhead %.3f ms, queue size %d",
+            deadline, frame.frameNumber, waitFor * 1000.0, avgOverhead * 1000.0, [frameQueue count]);
 #endif
 
         // Update metrics
@@ -288,10 +291,14 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         }
         lastTargetLocal = targetLocal;
 
-        // moving average of how much time displayLink needs after dequeuing a frame.
+        // weighted moving average of how much time displayLink needs after dequeuing a frame.
         // This is used to avoid overshooting a vsync by waiting too long.
-        const double alpha = 0.25f;
+        const double alpha = 0.1f;
         avgOverhead = ((CACurrentMediaTime() - dl0) * alpha) + (avgOverhead * (1.0 - alpha));
+
+#if !TARGET_OS_TV
+        [self optimizeRefreshRate];
+#endif
     }
 }
 
@@ -357,8 +364,15 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                                     plotMetrics:&frameDropMetrics];
     [self safeCopyMetricsTo:&_frameDropMetrics from:&frameDropMetrics];
 
+    CFTimeInterval dl0 = CACurrentMediaTime();
+    static CFTimeInterval avgOverhead = 0.004f; // averaged each callback
+    CFTimeInterval waitFor = deadline - dl0 - avgOverhead;
+    if (waitFor < 0.001f) {
+        waitFor = 0.001f;
+    }
+
     // Process the next frame for display
-    frame = [frameQueue dequeueWithTimeout:(deadline - CACurrentMediaTime() - 0.002f)];
+    frame = [frameQueue dequeueWithTimeout:waitFor];
     if (frame != nil) {
         CFTimeInterval now = CACurrentMediaTime();
 
@@ -393,6 +407,11 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             [self->_callbacks observeFloat:PLOT_FRAMETIME value:(targetLocal - lastTargetLocal) * 1000.0];
         }
         lastTargetLocal = targetLocal;
+
+        // weighted moving average of how much time displayLink needs after dequeuing a frame.
+        // This is used to avoid overshooting a vsync by waiting too long.
+        const double alpha = 0.1f;
+        avgOverhead = ((CACurrentMediaTime() - dl0) * alpha) + (avgOverhead * (1.0 - alpha));
     }
     
     // Graph the displayLink callback interval, hidden by default
@@ -402,6 +421,35 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     lastDisplayLinkStart = start;
 }
 
+// Render frame
+- (void)renderFrame:(Frame *)frame {
+    [self->displayLayer enqueueSampleBuffer:frame.sampleBuffer];
+
+    // Some OS-level metrics I'm not sure what to do with
+    if (@available(iOS 17.4, tvOS 17.4, *)) {
+        if (frame.frameNumber % 600 == 0) {
+            [self->displayLayer.sampleBufferRenderer loadVideoPerformanceMetricsWithCompletionHandler:^(AVVideoPerformanceMetrics * videoMetrics) {
+                Log(LOG_I, @"AVVideoPerformanceMetrics: frames %d, dropped %d (%.1f%%), optimized %d (%.1f%%), accumulatedDelay %f",
+                    videoMetrics.totalNumberOfFrames, // The total number of frames that display if no frames drop.
+                    videoMetrics.numberOfDroppedFrames, // The total number of frames the system drops prior to decoding or from missing the display deadline
+                    ((double)videoMetrics.numberOfDroppedFrames / videoMetrics.totalNumberOfFrames) * 100.0,
+                    videoMetrics.numberOfFramesDisplayedUsingOptimizedCompositing, // The total number of full screen frames rendered in a special power-efficient mode that didn’t require compositing with other UI elements.
+                    ((double)videoMetrics.numberOfFramesDisplayedUsingOptimizedCompositing / videoMetrics.totalNumberOfFrames) * 100.0,
+                    videoMetrics.totalAccumulatedFrameDelay); // The accumulated amount of time between the prescribed presentation times of displayed video frames and their actual time of display.
+            }];
+        }
+    }
+
+    if (frame.frameType == FRAME_TYPE_IDR) {
+        // Ensure the layer is visible now
+        self->displayLayer.hidden = NO;
+
+        // Tell our parent VC to hide the progress indicator
+        [self->_callbacks videoContentShown];
+    }
+}
+
+// Render frame at a specific targetTime
 - (void)renderFrame:(Frame *)frame atTime:(CMTime)targetTime {
     CMSampleBufferSetOutputPresentationTimeStamp(frame.sampleBuffer, targetTime);
 
@@ -421,25 +469,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         Log(LOG_I, @"Setting timebase for stream to %d / %d", pts.value, pts.timescale);
     }
 
-    // I'm not sure this does anything, when our timestamps are already "now".
-    // set the immediate flag if timebase is using mach time (from queue-based displaylink)
-    if (targetTime.timescale == NSEC_PER_SEC) {
-        CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(frame.sampleBuffer, true);
-        if (attachments) {
-            CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
-            CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
-        }
-    }
-
-    [self->displayLayer enqueueSampleBuffer:frame.sampleBuffer];
-
-    if (frame.frameType == FRAME_TYPE_IDR) {
-        // Ensure the layer is visible now
-        self->displayLayer.hidden = NO;
-
-        // Tell our parent VC to hide the progress indicator
-        [self->_callbacks videoContentShown];
-    }
+    return [self renderFrame:frame];
 }
 
 - (void)cleanup
@@ -928,10 +958,9 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         [self setupDecompressionSession];
     }
 
-    // Since we are only decoding 1 frame at a time, async may be pointless here.
     // 1xRealTime allows the decoder to run in a lower-power mode as long as it keeps up.
-    VTDecodeFrameFlags flags = kVTDecodeFrame_EnableAsynchronousDecompression |
-                               kVTDecodeFrame_1xRealTimePlayback;
+    // We use synchronous mode because we only handle one frame at a time
+    VTDecodeFrameFlags flags = kVTDecodeFrame_1xRealTimePlayback;
 
     OSStatus status = VTDecompressionSessionDecodeFrameWithOutputHandler(
         decompressionSession, sampleBuffer, flags, NULL,
@@ -942,9 +971,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
               LiRequestIdrFrame();
               return;
           }
-
-          // this thread comes out of the video decoder at default prio, but it should match DisplayLink's highest priority
-          PltSetThreadPriority(QOS_CLASS_USER_INTERACTIVE);
 
           if (self->formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->formatDescImageBuffer, imageBuffer)) {
               OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->formatDescImageBuffer));
@@ -963,33 +989,32 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
               return;
           }
 
-          Frame *frame = [[Frame alloc] initWithSampleBuffer:sampleBuffer frameNumber:frameNumber frameType:frameType];
-          [self->frameQueue enqueue:frame];
+          // Dispatch onto our higher priority queue, should be ok as async
+          dispatch_async(self->_vtq, ^{
+              Frame *frame = [[Frame alloc] initWithSampleBuffer:sampleBuffer frameNumber:frameNumber frameType:frameType];
+              [self->frameQueue enqueue:frame];
 
-          static PlotMetrics frameQueueMetrics = {};
-          [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES
-                                                value:[self->frameQueue count]
-                                          plotMetrics:&frameQueueMetrics];
-          [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
+              static PlotMetrics frameQueueMetrics = {};
+              [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES
+                                                    value:[self->frameQueue count]
+                                              plotMetrics:&frameQueueMetrics];
+              [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
 
-          // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
-          static PlotMetrics decodeMetrics = {};
-          [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE
-                                                value:(CACurrentMediaTime() - decodeStartTime) * 1000.0
-                                          plotMetrics:&decodeMetrics];
-          [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
+              // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
+              static PlotMetrics decodeMetrics = {};
+              [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE
+                                                    value:(CACurrentMediaTime() - decodeStartTime) * 1000.0
+                                              plotMetrics:&decodeMetrics];
+              [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
 
-          // It's important we capture these metrics on the incoming thread, so they aren't affected by Moonlight choosing to drop frames.
-          static CFTimeInterval lastHostFrame = 0.0f;
-          if (lastHostFrame != 0) {
-              [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
-          }
-          lastHostFrame = frame.pts;
+              // It's important we capture these metrics on the incoming thread, so they aren't affected by Moonlight choosing to drop frames.
+              static CFTimeInterval lastHostFrame = 0.0f;
+              if (lastHostFrame != 0) {
+                  [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
+              }
+              lastHostFrame = frame.pts;
+            });
         });
-
-    if (status == noErr) {
-        status = VTDecompressionSessionWaitForAsynchronousFrames(decompressionSession);
-    }
 
     return status;
 }
@@ -1079,6 +1104,60 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         memcpy(&stats->frameQueueMetrics, &_frameQueueMetrics, sizeof(PlotMetrics));
         memcpy(&stats->frameDropMetrics, &_frameDropMetrics, sizeof(PlotMetrics));
     });
+}
+
+// When streaming lower framerate content on a ProMotion display, the screen refresh rate can be
+// reduced, optimizing battery life.
+- (void)optimizeRefreshRate {
+    static NSArray<NSNumber *> *supportedRates;
+    static dispatch_once_t onceToken;
+    static int lastTargetRate = 0;
+    int targetRate = (int)maxRefreshRate;
+
+    if (maxRefreshRate <= 60 || maxRefreshRate == 90) {
+        return;
+    }
+
+    dispatch_once(&onceToken, ^{
+        // https://developer.apple.com/documentation/quartzcore/optimizing-promotion-refresh-rates-for-iphone-13-pro-and-ipad-pro?language=objc
+        UIDevice *device = [UIDevice currentDevice];
+        if (device.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+            supportedRates = @[@24, @30, @40, @60, @120];
+        }
+        else if (device.userInterfaceIdiom == UIUserInterfaceIdiomPhone) {
+            supportedRates = @[@10, @12, @15, @16, @20, @24, @30, @40, @48, @60, @80, @120];
+        }
+        else {
+            supportedRates = @[@30, @60];
+        }
+    });
+
+    CFTimeInterval streamFps = [frameQueue estimatedFramerate];
+    if (streamFps > maxRefreshRate) {
+        streamFps = maxRefreshRate;
+    }
+
+    for (NSNumber *r in supportedRates) {
+        NSInteger rate = r.integerValue;
+        if (rate >= (int)streamFps) {
+            targetRate = (int)rate;
+            break;
+        }
+    }
+
+    if (targetRate == lastTargetRate) {
+        return;
+    }
+    lastTargetRate = targetRate;
+
+    Log(LOG_I, @"optimizeRefreshRate: new rate %d Hz based on streamFps of %.2f fps", targetRate, streamFps);
+
+    if (@available(iOS 15.0, tvOS 15.0, *)) {
+        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(targetRate, maxRefreshRate, targetRate);
+    }
+    else {
+        _displayLink.preferredFramesPerSecond = targetRate;
+    }
 }
 
 @end

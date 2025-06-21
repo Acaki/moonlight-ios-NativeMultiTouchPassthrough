@@ -63,6 +63,8 @@
 		A1A777E52DDBEC5500E071D8 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D42DDBEC5500E071D8 /* imgui.cpp */; };
 		A1A777E62DDBEC5500E071D8 /* imgui_draw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D62DDBEC5500E071D8 /* imgui_draw.cpp */; };
 		A1A777E72DDBEC5500E071D8 /* imgui_tables.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777DA2DDBEC5500E071D8 /* imgui_tables.cpp */; };
+		A1D0DEAD2E06018400086726 /* Frame.m in Sources */ = {isa = PBXBuildFile; fileRef = A1D0DEAC2E06018200086726 /* Frame.m */; };
+		A1D0DEAE2E06018400086726 /* Frame.m in Sources */ = {isa = PBXBuildFile; fileRef = A1D0DEAC2E06018200086726 /* Frame.m */; };
 		DC1F5A07206436B20037755F /* ConnectionHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = DC1F5A06206436B20037755F /* ConnectionHelper.m */; };
 		F74BEF9C2C1A705600224667 /* OpenSSL in Frameworks */ = {isa = PBXBuildFile; productRef = F74BEF9B2C1A705600224667 /* OpenSSL */; };
 		F74BEFA42C1A80E400224667 /* OpenSSL in Frameworks */ = {isa = PBXBuildFile; productRef = F74BEFA32C1A80E400224667 /* OpenSSL */; };
@@ -266,6 +268,8 @@
 		A1A777D92DDBEC5500E071D8 /* imgui_internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imgui_internal.h; path = ../third_party/imgui/imgui_internal.h; sourceTree = "<group>"; };
 		A1A777DA2DDBEC5500E071D8 /* imgui_tables.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_tables.cpp; path = ../third_party/imgui/imgui_tables.cpp; sourceTree = "<group>"; };
 		A1A777DB2DDBEC5500E071D8 /* imgui_widgets.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_widgets.cpp; path = ../third_party/imgui/imgui_widgets.cpp; sourceTree = "<group>"; };
+		A1D0DEAB2E06013600086726 /* Frame.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Frame.h; sourceTree = "<group>"; };
+		A1D0DEAC2E06018200086726 /* Frame.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Frame.m; sourceTree = "<group>"; };
 		A1EBD2F52DD94CE800F3BF4B /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		A1EBD2F62DD94CE900F3BF4B /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		A1EBD2F92DD94CFC00F3BF4B /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS18.5.sdk/System/Library/Frameworks/MetalKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -657,6 +661,8 @@
 		FB89461E19F646E200339C8A /* Utility */ = {
 			isa = PBXGroup;
 			children = (
+				A1D0DEAC2E06018200086726 /* Frame.m */,
+				A1D0DEAB2E06013600086726 /* Frame.h */,
 				A179C7B02DF72DAF00901300 /* Queue.h */,
 				A1967DB32DF036B800EFC5CF /* Plot.h */,
 				A10BC62E2DE8E65F00905783 /* BandwidthTracker.h */,
@@ -866,6 +872,9 @@
 		FB290CE619B2C406004C83CF /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				KnownAssetTags = (
+					New,
+				);
 				LastSwiftUpdateCheck = 0730;
 				LastUpgradeCheck = 1400;
 				ORGANIZATIONNAME = "Moonlight Game Streaming Project";
@@ -991,6 +1000,7 @@
 				A1A777E52DDBEC5500E071D8 /* imgui.cpp in Sources */,
 				A1A777E62DDBEC5500E071D8 /* imgui_draw.cpp in Sources */,
 				A1A777E72DDBEC5500E071D8 /* imgui_tables.cpp in Sources */,
+				A1D0DEAD2E06018400086726 /* Frame.m in Sources */,
 				FB1A681B213284FB00507771 /* ComputerScrollView.m in Sources */,
 				FB1A681C213284FB00507771 /* AppCollectionView.m in Sources */,
 				9865DC37213287FE0005B9B9 /* StreamFrameViewController.m in Sources */,
@@ -1047,6 +1057,7 @@
 				FB290D0719B2C406004C83CF /* Limelight.xcdatamodeld in Sources */,
 				9819CC22254F180F008A7C8E /* AbsoluteTouchHandler.m in Sources */,
 				9819CC14254F107A008A7C8E /* RelativeTouchHandler.m in Sources */,
+				A1D0DEAE2E06018400086726 /* Frame.m in Sources */,
 				FB1A674D2131E65900507771 /* KeyboardSupport.m in Sources */,
 				FB89463219F646E200339C8A /* VideoDecoderRenderer.m in Sources */,
 				FB290D0419B2C406004C83CF /* AppDelegate.m in Sources */,
