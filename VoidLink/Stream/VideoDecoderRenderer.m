@@ -972,6 +972,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
               return;
           }
 
+          // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
+          static PlotMetrics decodeMetrics = {};
+          [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE
+                                                value:(CACurrentMediaTime() - decodeStartTime) * 1000.0
+                                          plotMetrics:&decodeMetrics];
+          [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
+
           if (self->formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->formatDescImageBuffer, imageBuffer)) {
               OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->formatDescImageBuffer));
               if (res != noErr) {
@@ -999,13 +1006,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                                                     value:[self->frameQueue count]
                                               plotMetrics:&frameQueueMetrics];
               [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
-
-              // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
-              static PlotMetrics decodeMetrics = {};
-              [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE
-                                                    value:(CACurrentMediaTime() - decodeStartTime) * 1000.0
-                                              plotMetrics:&decodeMetrics];
-              [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
 
               // It's important we capture these metrics on the incoming thread, so they aren't affected by Moonlight choosing to drop frames.
               static CFTimeInterval lastHostFrame = 0.0f;
