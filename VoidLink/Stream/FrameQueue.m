@@ -6,7 +6,7 @@
 
 // The logging in this class is very heavy
 #if !defined(NDEBUG)
-//# define FRAME_QUEUE_VERBOSE
+# define FRAME_QUEUE_VERBOSE
 #endif
 
 static inline NSString *FQQoSString(qos_class_t qos) {
