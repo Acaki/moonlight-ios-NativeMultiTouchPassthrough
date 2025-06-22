@@ -12,6 +12,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface RelativeTouchHandler : UIResponder
 
+#if TARGET_OS_TV
+@property (nonatomic) UIGestureRecognizer* remotePressRecognizer;
+@property (nonatomic) UIGestureRecognizer* remoteLongPressRecognizer;
+#endif
+
 -(id)initWithView:(StreamView*)view;
 
 @end

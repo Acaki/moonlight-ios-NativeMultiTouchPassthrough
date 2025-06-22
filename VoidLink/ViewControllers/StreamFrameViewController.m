@@ -14,6 +14,7 @@
 #import "DataManager.h"
 #import "PaddedLabel.h"
 #import "ImGuiRenderer.h"
+#import "RelativeTouchHandler.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -38,9 +39,6 @@
     TemporarySettings *_settings;
     NSTimer *_inactivityTimer;
     NSTimer *_statsUpdateTimer;
-    UITapGestureRecognizer *_menuTapGestureRecognizer;
-    UITapGestureRecognizer *_menuDoubleTapGestureRecognizer;
-    UITapGestureRecognizer *_playPauseTapGestureRecognizer;
     PaddedLabel *_overlayView;
     UILabel *_stageLabel;
     UILabel *_tipLabel;
@@ -53,11 +51,17 @@
     PlotMetrics _frameDropMetrics;
     PlotMetrics _frameQueueMetrics;
 
-#if !TARGET_OS_TV
+#if TARGET_OS_TV
+    UITapGestureRecognizer *_menuTapGestureRecognizer;
+    UITapGestureRecognizer *_menuDoubleTapGestureRecognizer;
+    UITapGestureRecognizer *_playPauseTapGestureRecognizer;
+    UITapGestureRecognizer *_remoteDoubleSelectRecognizer;
+#else
     UIScreenEdgePanGestureRecognizer *_exitSwipeRecognizer;
     UISwipeGestureRecognizer *_topSwipeRecognizer;
     UISwipeGestureRecognizer *_topSwipeUpRecognizer;
 #endif
+
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -78,6 +82,14 @@
 - (void)controllerPlayPauseButtonPressed:(id)sender {
     Log(LOG_I, @"Play/Pause button pressed -- backing out of stream");
     [self returnToMainFrame];
+}
+- (void)remoteSelectButtonDoublePressed:(id)sender {
+    Log(LOG_I, @"Select button double-tapped -- toggling stats");
+    if (!self->_statsUpdateTimer) {
+        [self showStats];
+    } else {
+        [self hideStats];
+    }
 }
 #endif
 
@@ -114,11 +126,8 @@
     _controllerSupport = [[ControllerSupport alloc] initWithConfig:self.streamConfig delegate:self];
     _inactivityTimer = nil;
     
-    _streamView = [[StreamView alloc] initWithFrame:self.view.frame];
-    [_streamView setupStreamView:_controllerSupport interactionDelegate:self config:self.streamConfig];
-    
 #if TARGET_OS_TV
-    if (!_menuTapGestureRecognizer || !_menuDoubleTapGestureRecognizer || !_playPauseTapGestureRecognizer) {
+    if (!_menuTapGestureRecognizer || !_menuDoubleTapGestureRecognizer || !_playPauseTapGestureRecognizer || !_remoteDoubleSelectRecognizer) {
         _menuTapGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(controllerPauseButtonPressed:)];
         _menuTapGestureRecognizer.allowedPressTypes = @[@(UIPressTypeMenu)];
 
@@ -129,11 +138,16 @@
         _menuDoubleTapGestureRecognizer.numberOfTapsRequired = 2;
         [_menuTapGestureRecognizer requireGestureRecognizerToFail:_menuDoubleTapGestureRecognizer];
         _menuDoubleTapGestureRecognizer.allowedPressTypes = @[@(UIPressTypeMenu)];
+
+        _remoteDoubleSelectRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(remoteSelectButtonDoublePressed:)];
+        _remoteDoubleSelectRecognizer.numberOfTapsRequired = 2;
+        _remoteDoubleSelectRecognizer.allowedPressTypes = @[@(UIPressTypeSelect)];
     }
     
     [self.view addGestureRecognizer:_menuTapGestureRecognizer];
     [self.view addGestureRecognizer:_menuDoubleTapGestureRecognizer];
     [self.view addGestureRecognizer:_playPauseTapGestureRecognizer];
+    [self.view addGestureRecognizer:_remoteDoubleSelectRecognizer];
 
 #else
     _exitSwipeRecognizer = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self action:@selector(edgeSwiped)];
@@ -155,12 +169,23 @@
     _topSwipeUpRecognizer.enabled = FALSE;
     // This is added to the _overlayView when displayed
 #endif
-    
+
+    _streamView = [[StreamView alloc] initWithFrame:self.view.frame];
+    [_streamView setupStreamView:_controllerSupport
+             interactionDelegate:self
+                          config:self.streamConfig];
+#if TARGET_OS_TV
+    // we need to tell the other remote handler in RelativeTouchHandler to wait for our double-select
+    RelativeTouchHandler *touchHandler = (RelativeTouchHandler *)[_streamView touchHandler];
+    UIGestureRecognizer *remotePressRecognizer = [touchHandler remotePressRecognizer];
+    [remotePressRecognizer requireGestureRecognizerToFail:_remoteDoubleSelectRecognizer];
+#endif
+
     _tipLabel = [[UILabel alloc] init];
     [_tipLabel setUserInteractionEnabled:NO];
     
 #if TARGET_OS_TV
-    [_tipLabel setText:@"Tip: Tap the Play/Pause button on the Apple TV Remote to disconnect from your PC"];
+    [_tipLabel setText:@"Tip: Tap the Play/Pause button on the Apple TV Remote to disconnect from your PC. Double-tap Down for stats."];
 #else
     [_tipLabel setText:@"Tip: Swipe from the left edge to disconnect from your PC. Swipe down with 2 fingers for stats."];
 #endif
@@ -312,7 +337,8 @@
         _topSwipeUpRecognizer.enabled = TRUE;
         [_overlayView addGestureRecognizer:_topSwipeUpRecognizer];
 #endif
-        [_overlayView setAlpha:0.6];
+        float opacity = [_settings.graphOpacity intValue] / 100.0f;
+        [_overlayView setAlpha:opacity];
         [self.view addSubview:_overlayView];
     }
     
@@ -402,13 +428,16 @@
 }
 
 - (void)topSwiped {
-    Log(LOG_I, @"User swiped down for stats");
+    Log(LOG_I, @"User swiped/cicked down for stats");
+    [self showStats];
 
 #if !TARGET_OS_TV
     _topSwipeRecognizer.enabled = FALSE;
     _topSwipeUpRecognizer.enabled = TRUE;
 #endif
+}
 
+- (void)showStats {
     if (self->_statsUpdateTimer == nil) {
         self->_statsUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:1.0f
                                                                    target:self
@@ -426,12 +455,15 @@
 
 - (void)topSwipedUp {
     Log(LOG_I, @"User swiped up to hide stats");
+    [self hideStats];
 
 #if !TARGET_OS_TV
     _topSwipeRecognizer.enabled = TRUE;
     _topSwipeUpRecognizer.enabled = FALSE;
 #endif
+}
 
+- (void)hideStats {
     if (self->_statsUpdateTimer != nil) {
         [_statsUpdateTimer invalidate];
         _statsUpdateTimer = nil;

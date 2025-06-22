@@ -37,8 +37,6 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     double accumulatedMouseDeltaX;
     double accumulatedMouseDeltaY;
     
-    UIResponder* touchHandler;
-    
     id<UserInteractionDelegate> interactionDelegate;
     NSTimer* interactionTimer;
     BOOL hasUserInteracted;
@@ -64,14 +62,14 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     
 #if TARGET_OS_TV
     // tvOS requires RelativeTouchHandler to manage Apple Remote input
-    self->touchHandler = [[RelativeTouchHandler alloc] initWithView:self];
+    self->_touchHandler = [[RelativeTouchHandler alloc] initWithView:self];
 #else
     // iOS uses RelativeTouchHandler or AbsoluteTouchHandler depending on user preference
     if (settings.absoluteTouchMode) {
-        self->touchHandler = [[AbsoluteTouchHandler alloc] initWithView:self];
+        self->_touchHandler = [[AbsoluteTouchHandler alloc] initWithView:self];
     }
     else {
-        self->touchHandler = [[RelativeTouchHandler alloc] initWithView:self];
+        self->_touchHandler = [[RelativeTouchHandler alloc] initWithView:self];
     }
     
     onScreenControls = [[OnScreenControls alloc] initWithView:self controllerSup:controllerSupport streamConfig:streamConfig];
@@ -349,8 +347,8 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
         // handler has a consistent view of touch events to correctly suppress
         // activation of one or two finger gestures when a three finger gesture
         // is triggered.
-        [touchHandler touchesBegan:touches withEvent:event];
-        
+        [_touchHandler touchesBegan:touches withEvent:event];
+
         if ([[event allTouches] count] == 3) {
             if (isInputingText) {
                 Log(LOG_D, @"Closing the keyboard");
@@ -543,7 +541,7 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     hasUserInteracted = YES;
     
     if (![onScreenControls handleTouchMovedEvent:touches]) {
-        [touchHandler touchesMoved:touches withEvent:event];
+        [_touchHandler touchesMoved:touches withEvent:event];
     }
 }
 
@@ -610,12 +608,12 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
 #endif
     
     if (![onScreenControls handleTouchUpEvent:touches]) {
-        [touchHandler touchesEnded:touches withEvent:event];
+        [_touchHandler touchesEnded:touches withEvent:event];
     }
 }
 
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {
-    [touchHandler touchesCancelled:touches withEvent:event];
+    [_touchHandler touchesCancelled:touches withEvent:event];
     [self handleMouseButtonEvent:BUTTON_ACTION_RELEASE
                       forTouches:touches
                        withEvent:event];

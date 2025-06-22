@@ -19,12 +19,6 @@ static const int REFERENCE_HEIGHT = 720;
     BOOL isDragging;
     NSTimer* dragTimer;
     NSUInteger peakTouchCount;
-    
-#if TARGET_OS_TV
-    UIGestureRecognizer* remotePressRecognizer;
-    UIGestureRecognizer* remoteLongPressRecognizer;
-#endif
-    
     UIView* view;
 }
 
@@ -33,14 +27,14 @@ static const int REFERENCE_HEIGHT = 720;
     self->view = view;
     
 #if TARGET_OS_TV
-    remotePressRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(remoteButtonPressed:)];
-    remotePressRecognizer.allowedPressTypes = @[@(UIPressTypeSelect)];
-    
-    remoteLongPressRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(remoteButtonLongPressed:)];
-    remoteLongPressRecognizer.allowedPressTypes = @[@(UIPressTypeSelect)];
-    
-    [self->view addGestureRecognizer:remotePressRecognizer];
-    [self->view addGestureRecognizer:remoteLongPressRecognizer];
+    _remotePressRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(remoteButtonPressed:)];
+    _remotePressRecognizer.allowedPressTypes = @[@(UIPressTypeSelect)];
+
+    _remoteLongPressRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(remoteButtonLongPressed:)];
+    _remoteLongPressRecognizer.allowedPressTypes = @[@(UIPressTypeSelect)];
+
+    [self->view addGestureRecognizer:_remotePressRecognizer];
+    [self->view addGestureRecognizer:_remoteLongPressRecognizer];
 #endif
     
     return self;
