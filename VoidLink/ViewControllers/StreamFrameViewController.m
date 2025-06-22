@@ -337,8 +337,8 @@
         _topSwipeUpRecognizer.enabled = TRUE;
         [_overlayView addGestureRecognizer:_topSwipeUpRecognizer];
 #endif
-        float opacity = [_settings.graphOpacity intValue] / 100.0f;
-        [_overlayView setAlpha:opacity];
+        int opacity = MAX([_settings.graphOpacity intValue], 60);
+        [_overlayView setAlpha:(float)opacity / 100.0];
         [self.view addSubview:_overlayView];
     }
     
