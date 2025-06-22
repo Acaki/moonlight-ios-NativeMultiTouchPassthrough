@@ -26,7 +26,7 @@
 #include <mach/mach_time.h>
 
 // Define for extra logging related to frame pacing
-#define DISPLAYLINK_VERBOSE
+//#define DISPLAYLINK_VERBOSE
 
 // Private libavformat API for writing the AV1 Codec Configuration Box
 extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
@@ -958,12 +958,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         [self setupDecompressionSession];
     }
 
-    // 1xRealTime allows the decoder to run in a lower-power mode as long as it keeps up.
-    // We use synchronous mode because we only handle one frame at a time
-    VTDecodeFrameFlags flags = kVTDecodeFrame_1xRealTimePlayback;
-
     OSStatus status = VTDecompressionSessionDecodeFrameWithOutputHandler(
-        decompressionSession, sampleBuffer, flags, NULL,
+        decompressionSession, sampleBuffer, 0, NULL,
         ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
           if (status != noErr) {
               NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];

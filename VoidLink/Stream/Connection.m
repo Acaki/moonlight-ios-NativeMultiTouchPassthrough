@@ -172,7 +172,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
             currentVideoStats.networkDroppedFrames += droppedFrames;
             currentVideoStats.totalFrames += droppedFrames;
 
-            Log(LOG_W, @"Network dropped frame: %d", decodeUnit->frameNumber);
+            Log(LOG_W, @"Network dropped %d frame(s): %d - %d", droppedFrames, lastFrameNumber + 1, decodeUnit->frameNumber - 1);
         }
         lastFrameNumber = decodeUnit->frameNumber;
     }
