@@ -187,20 +187,19 @@
     double peakVideoMbps = [_connection getBwTracker].peakMbps;
 
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\n"
-            "Bitrate: %.1f Mbps, Peak (%lus): %.1f, Display: %.2f Hz\n"
+            "Bitrate: %.1f Mbps, Peak: %.1f, Display: %.2f Hz\n"
             "%@"
-            "Frames buffered: %.1f, frame pacing: %@\n"
-            "Network packet loss: %.1f%%, dropped: %.1f%%\n"
+            "Frames buffered: %.1f, frame pacing: vsync\n"
+            "Frames dropped by network/pacing: %.1f%%/%.1f%%\n"
             "Average network latency: %@\n"
             "Decode time: %.2f/%.2f/%.2f ms",
             _config.width,
             _config.height,
             fps,
             [_connection getActiveCodecName],
-            avgVideoMbps, [_connection getBwTracker].windowSeconds, peakVideoMbps, stats.displayRefreshRate,
+            avgVideoMbps, peakVideoMbps, stats.displayRefreshRate,
             hostProcessingString,
             stats.frameQueueMetrics.avg,
-            stats.framePacingMode == PACING_MODE_VSYNC ? @"vsync" : @"host pts",
             (stats.networkDroppedFrames / stats.totalFrames) * 100.0,
             stats.frameDropMetrics.nsamples > 0 ? (stats.frameDropMetrics.total / stats.frameDropMetrics.nsamples) * 100.0 : 0.0f,
             latencyString,

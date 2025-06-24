@@ -2,7 +2,7 @@
 #import <XCTest/XCTest.h>
 #import <CoreMedia/CoreMedia.h>
 
-#define FRAME_QUEUE_VERBOSE
+//#define FRAME_QUEUE_VERBOSE
 
 #import "FrameQueue.h"
 #import "Logger.h"
@@ -19,6 +19,7 @@
 - (void)setUp {
     [super setUp];
     self.queue = [[FrameQueue alloc] init];
+    [self.queue setHighWaterMark:3];
     _frameNumber = 0;
 }
 
@@ -50,9 +51,7 @@
     Frame *frame = [[Frame alloc] initWithSampleBuffer:buf
                                            frameNumber:num
                                              frameType:type];
-    if (!_frameNumber) {
-        _frameNumber = num;
-    }
+    _frameNumber = num; // reset the counter
     return frame;
 }
 
@@ -65,26 +64,6 @@
     tick += ONE_FRAME;
     return frame;
 }
-
-// Test plan:
-// enqueue to max, should drop max - 2
-// enqueue to max with IDR, should leave IDR
-// enqueue, dequeue, enqueue, dequeueWithTimeout: should return instantly
-// dequeue empty: return nil
-// dequeueWithTimeout empty: wait timeout, return nil
-// dequeueWithTimeout empty, enqueue: immediately return new frame
-// enqueue few times: count is accurate
-// enqueue + dequeue few times: count is accurate
-// enqueue few times: clear removes everything
-// enqueue 6x, dropWithTarget:2: should drop #2, #4
-// enqueue 9x, dropWithTarget:1: should drop #2, #4, #6, #8
-// dropWithTarget with callback
-// dropWithTarget without callback
-// dropWithTarget with callback returning false
-// dropWithTarget dropMode ALL (maybe remove this)
-// wantsDuration enabled
-// wantsDuration disabled
-
 
 - (void)testEnqueueThenDequeue {
     Frame *f1 = [self makeFrameNumber:1 type:FRAME_TYPE_IDR pts:0];
@@ -106,135 +85,190 @@
     XCTAssertNil([self.queue dequeue]);
 }
 
-- (void)testOverflowClear {
-    for (int i = 0; i < self.queue.maxCapacity; i++) {
-        [self.queue enqueue:[self makeFrame]];
-        XCTAssertEqual([self.queue count], i + 1);
-    }
+- (void)testOverflow {
+    [self.queue setHighWaterMark:3];
 
-    // queue should be full, adding frames 1-16 results
-    // in 1, 2, 16 being returned. XXX This is probably wrong, newest 
-    [self.queue enqueue:[self makeFrame]];
+    for (int i = 0; i < self.queue.highWaterMark; i++) {
+        [self.queue enqueue:[self makeFrame]];
+    }
     XCTAssertEqual([self.queue count], 3);
-    Frame *frame = [self.queue dequeue];
-    XCTAssertEqual(frame.frameNumber, 1);
-    frame = [self.queue dequeue];
-    XCTAssertEqual(frame.frameNumber, 2);
-    frame = [self.queue dequeue];
-    XCTAssertEqual(frame.frameNumber, 16);
+
+    // queue should be full at 3
+    // 4: dropped, 5: queued, causes 1 to be dropped
+    // 6: dropped, 7: queued, causes 2 to be dropped
+    // 8: dropped, 9: queued, causes 3 to be dropped
+    for (int i = 0; i < 6; i++) {
+        [self.queue enqueue:[self makeFrame]];
+    }
+    XCTAssertEqual([self.queue count], 3);
+    XCTAssertEqual([self.queue dropCount], 6);
+    Log(LOG_I, @"queue after overflow: %@", self.queue);
+    for (NSNumber *expected in @[@5, @7, @9]) {
+        Frame *frame = [self.queue dequeue];
+        XCTAssertEqual(frame.frameNumber, expected.integerValue);
+    }
+}
+
+- (void)testOverflowWithIDR {
+    [self.queue setHighWaterMark:5];
+
+    [self.queue enqueue:[self makeFrameNumber:1 type:FRAME_TYPE_IDR pts:0]];
+    [self.queue enqueue:[self makeFrame]];
+    [self.queue enqueue:[self makeFrameNumber:3 type:FRAME_TYPE_IDR pts:0]];
+    [self.queue enqueue:[self makeFrame]];
+    [self.queue enqueue:[self makeFrame]];
+    XCTAssertEqual([self.queue count], 5);
+
+    // queue should be full at 5
+    // 6: dropped, 7: queued, does NOT drop 1 (IDR)
+    // 8: dropped, 9: queued, does NOT drop 1 (IDR) - will be stuck here until it's dequeued
+    // 10: dropped, 11: queued, does NOT drop 3 (IDR)
+    for (int i = 0; i < 6; i++) {
+        [self.queue enqueue:[self makeFrame]];
+    }
+    XCTAssertEqual([self.queue count], 8);
+    XCTAssertEqual([self.queue dropCount], 3);
+    Log(LOG_I, @"queue after overflow: %@", self.queue);
+
+    for (NSNumber *expected in @[@1, @2, @3, @4, @5, @7, @9, @11]) {
+        XCTAssertEqual([self.queue dequeue].frameNumber, expected.integerValue);
+    }
+}
+
+- (void)testClear {
+    for (int i = 0; i < self.queue.highWaterMark; i++) {
+        [self.queue enqueue:[self makeFrame]];
+    }
+    XCTAssertEqual([self.queue count], self.queue.highWaterMark);
 
     [self.queue clear];
     XCTAssertEqual([self.queue count], 0);
     XCTAssertNil([self.queue dequeue]);
 }
 
-- (void)testOverflowWithIDR {
-    [self.queue enqueue:[self makeFrameNumber:1 type:FRAME_TYPE_IDR pts:0]];
-    [self.queue enqueue:[self makeFrame]];
-    [self.queue enqueue:[self makeFrameNumber:3 type:FRAME_TYPE_IDR pts:0]];
-
-    int size = 3;
-    while ([self.queue count] < self.queue.maxCapacity) {
-        [self.queue enqueue:[self makeFrame]];
-        XCTAssertEqual([self.queue count], size++);
-    }
-
-    // overflow
-    [self.queue enqueue:[self makeFrame]];
-    XCTAssert
-    for (int i = 0; i < self.queue.maxCapacity; i++) {
-        [self.queue enqueue:[self makeFrame]];
-        XCTAssertEqual([self.queue count], i + 1);
-    }
-}
-
-//- (void)testDropAllMode {
-//    // enqueue 5 dummy frames
-//    for (int i = 1; i <= 5; i++) {
-//        [self.queue enqueue:[self makeFrameNumber:i type:0]];
-//    }
-//    XCTAssertEqual([self.queue count], (NSUInteger)5);
-//
-//    // drop down to 2, in DROP_ALL mode
-//    int queueCountBefore = [self.queue compact:I
-//    int dropped = [self.queue dropWithTarget:2
-//                                    dropMode:DROP_ALTERNATING
-//                                  usingBlock:^BOOL(Frame *frame, NSUInteger queueCount) {
-//        XCTAssertEqual(queueCount, queueCountBefore);
-//    }];
-//
-//    int dropped = [self.queue dropWithTarget:2
-//                                    dropMode:DROP_ALL
-//                                  usingBlock:nil];
-//    XCTAssertEqual(dropped, 3);
-//    XCTAssertEqual([self.queue count], (NSUInteger)2);
-//
-//    // the two remaining should be the last two we enqueued (4 and 5)
-//    Frame *r1 = [self.queue dequeue];
-//    Frame *r2 = [self.queue dequeue];
-//    XCTAssertEqual(r1.frameNumber, 4);
-//    XCTAssertEqual(r2.frameNumber, 5);
-//}
-
 - (void)testDequeueWithTimeout {
-    Frame *f = [self makeFrame];
-    [self.queue enqueue:f];
+    [self.queue enqueue:[self makeFrame]];
 
-    Frame *out = [self.queue dequeueWithTimeout:0.1];
+    // should return immediately with an item in the queue
+    CFTimeInterval t0 = CACurrentMediaTime();
+    Frame *out = [self.queue dequeueWithTimeout:1];
     XCTAssertNotNil(out);
-    XCTAssertEqual(out.frameNumber, 30);
+    XCTAssertEqual(out.frameNumber, 1);
+    XCTAssertLessThan(CACurrentMediaTime() - t0, 0.9);
 
     // should return nil after waiting
-    CFTimeInterval t0 = CACurrentMediaTime();
+    t0 = CACurrentMediaTime();
     XCTAssertNil([self.queue dequeueWithTimeout:0.2]);
     XCTAssertGreaterThan(CACurrentMediaTime() - t0, 0.2);
 
     // no timeout
+    t0 = CACurrentMediaTime();
     XCTAssertNil([self.queue dequeueWithTimeout:0]);
+    XCTAssertLessThan(CACurrentMediaTime() - t0, 0.1);
 }
 
-// wantsDuration enabled & disabled
-- (void)testWantsDurationYes {
-    [self.queue setWantsDuration:YES];
-
-    // 1 frame in queue, cannot be dequeued yet
-    [self.queue enqueue:[self makeFrame]];
-    XCTAssertEqual([self.queue count], 1);
-    XCTAssertNil([self.queue dequeue]);
-
+- (void)testDuration {
     // 2nd frame will compute 1st frame's duration. makeFrame generates sequential frames at 60fps
+    [self.queue clear];
+    [self.queue enqueue:[self makeFrame]];
     [self.queue enqueue:[self makeFrame]];
     XCTAssertEqual([self.queue count], 2);
     Frame *first = [self.queue dequeue];
-    XCTAssertEqualWithAccuracy(first.duration, 1.0f / 60, 0.0001, @"first frame missing duration");
-
-    // Try to drop the new frame that doesn't yet have a duration
-    Log(LOG_I, @"%@", self.queue);
-    int dropCount = [self.queue dropWithTarget:0 dropMode:DROP_ALL usingBlock:nil];
-    XCTAssertEqual(dropCount, 0, @"dropWithTarget:0 should not drop lone frame when wantsDuration is true");
+    XCTAssertEqualWithAccuracy(first.duration, (float)1.0f / 60, 0.0001f);
 }
 
-- (void)testWantsDurationNo {
-    [self.queue setWantsDuration:NO];
+- (void)testEstimatedFramerate {
+    // prime the start point
+    [self.queue estimatedFramerate];
+    for (int i = 0; i < 24 * 5; i++) {
+        // these will all get dropped but they are still counted for fps
+        [self.queue enqueue:[self makeFrame]];
+        [NSThread sleepForTimeInterval:1.0f / 24];
+    }
+    XCTAssertEqualWithAccuracy([self.queue estimatedFramerate], 24.0f, 4.0f);
+}
 
-    // 1 frame in queue, can be dequeued
-    [self.queue enqueue:[self makeFrame]];
-    XCTAssertEqual([self.queue count], 1);
-    Frame *first = [self.queue dequeue];
-    XCTAssertEqual(first.frameNumber, 1, @"Couldn't dequeue lone frame when wantsDuration=NO");
+- (void)testProducerConsumer {
+    static const int TotalFrames = 500;
 
-    // 2nd frame will not compute 1st frame's duration
-    [self.queue enqueue:[self makeFrame]];
-    [self.queue enqueue:[self makeFrame]];
-    XCTAssertEqual([self.queue count], 2);
-    first = [self.queue dequeue];
-    XCTAssertTrue(CMTIME_IS_INVALID(first.duration90), @"first frame has a duration but shouldn't");
-    XCTAssertTrue(first.duration == NAN, @"first frame has a duration but shouldn't");
+    // We expect exactly kTotalFrames dequeues.
+    XCTestExpectation *dequeueAll = [self expectationWithDescription:@"consumer dequeued all frames"];
+    dequeueAll.expectedFulfillmentCount = TotalFrames;
 
-    // Try to drop the new frames
-    Log(LOG_I, @"%@", self.queue);
-    int dropCount = [self.queue dropWithTarget:0 dropMode:DROP_ALL usingBlock:nil];
-    XCTAssertEqual(dropCount, 1, @"dropWithTarget:0 wasn't able to drop all frames when wantsDuration=NO");
+    // Producer
+    dispatch_queue_t producerQ = dispatch_queue_create("moonlight.test.producer", DISPATCH_QUEUE_CONCURRENT);
+    dispatch_async(producerQ, ^{
+        for (int i = 0; i < TotalFrames; i++) {
+            [self.queue enqueue:[self makeFrame]];
+            [NSThread sleepForTimeInterval:0.002];
+        }
+    });
+
+    // Consumer
+    dispatch_queue_t consumerQ = dispatch_queue_create("moonlight.test.consumer", DISPATCH_QUEUE_CONCURRENT);
+    dispatch_async(consumerQ, ^{
+        for (int expected = 0; expected < TotalFrames; expected++) {
+            Frame *frame = [self.queue dequeueWithTimeout:1.0];
+            XCTAssertNotNil(frame, @"Expected frame %d, but got nil", expected);
+            XCTAssertEqual(frame.frameNumber, expected + 1, @"Expected frameNumber %d but got %d", expected + 1, frame.frameNumber);
+            [dequeueAll fulfill];
+        }
+    });
+
+    // Wait up to 10s for all frames to be consumed
+    [self waitForExpectationsWithTimeout:10.0 handler:^(NSError * _Nullable error) {
+        if (error) {
+            XCTFail(@"Timed out waiting for consumer: %@", error);
+        }
+        XCTAssertEqual([self.queue count], 0, @"Queue should be empty at end");
+    }];
+}
+
+- (void)testPerformance {
+    XCTMeasureOptions *options = [[XCTMeasureOptions alloc] init];
+    options.iterationCount = 20;
+    if (@available(iOS 13.0, *)) {
+        static const int TotalFrames = 1000;
+        dispatch_queue_t producerQ = dispatch_queue_create("moonlight.test.producer", DISPATCH_QUEUE_CONCURRENT);
+        dispatch_queue_t consumerQ = dispatch_queue_create("moonlight.test.consumer", DISPATCH_QUEUE_CONCURRENT);
+
+        [self measureWithOptions:options block:^{
+            XCTestExpectation *dequeueAll = [self expectationWithDescription:@"consumer dequeued all frames"];
+            dequeueAll.expectedFulfillmentCount = TotalFrames;
+
+            [self.queue setHighWaterMark:5];
+
+            // Producer
+            dispatch_async(producerQ, ^{
+                for (int i = 0; i < TotalFrames; i++) {
+                    [self.queue enqueue:[self makeFrame]];
+                    [NSThread sleepForTimeInterval:0.001];
+                }
+            });
+
+            // Consumer
+            dispatch_async(consumerQ, ^{
+                for (int expected = 0; expected < TotalFrames; expected++) {
+                    [self.queue dequeueWithTimeout:1.0];
+                    [dequeueAll fulfill];
+                }
+            });
+
+            // Wait up to 10s for all frames to be consumed
+            [self waitForExpectationsWithTimeout:100.0 handler:^(NSError * _Nullable error) {
+                if (error) {
+                    XCTFail(@"Timed out waiting for consumer: %@", error);
+
+                    [self.queue clear];
+                }
+            }];
+        }];
+    }
+}
+
+- (void)testMemoryUsage {
+
+
 }
 
 @end

@@ -20,8 +20,6 @@
 @property (atomic, readonly) PlotMetrics decodeMetrics;
 @property (atomic, readonly) PlotMetrics frameDropMetrics;
 @property (atomic, readonly) PlotMetrics frameQueueMetrics;
-@property (atomic, readonly) FramePacingMode framePacingMode;
-@property (atomic, readonly) CMTime ptsCorrection;
 
 - (id)initWithView:(UIView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio;
 

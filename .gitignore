@@ -1,6 +1,10 @@
 **/xcuserdata/
 **/Moonlight.xcscmblueprint
 **/xcschemes/*.xcscheme
+Moonlight.xcodeproj/xcshareddata/xcbaselines/
 .DS_Store
+.stfolder/
+.vscode/
 Build
 DerivedData
+WorkspaceSettings.xcsettings

@@ -9,12 +9,12 @@
 struct PlotDef {
     FloatBuffer * _Nonnull buffer;
     const char * _Nonnull title;
+    PlotSide side;
     PlotLabelType labelType;
     const char * _Nonnull unit;
     double scaleMin, scaleMax, scaleTarget;
     float minY;
     float maxY;
-    BOOL hidden;
 };
 
 @interface ImGuiRenderer : UIViewController

@@ -32,7 +32,8 @@ static inline NSString *FQLogPrefix(void) {
 @implementation Frame
 
 - (instancetype)initWithSampleBuffer:(CMSampleBufferRef)sampleBuffer frameNumber:(int)frameNumber frameType:(int)frameType {
-    if (self = [super init]) {
+    self = [super init];
+    if (self) {
         _frameNumber  = frameNumber;
         _frameType    = frameType;
         _sampleBuffer = sampleBuffer;
@@ -48,12 +49,23 @@ static inline NSString *FQLogPrefix(void) {
     return self;
 }
 
+- (void)dealloc {
+    //FQLog(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, CMTimeGetSeconds(_pts90));
+
+    // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
+    // so we don't need to CFRetain in init, but do need to release it
+    CFRelease(_sampleBuffer);
+}
+
 - (CFTimeInterval)pts {
     return CMTimeGetSeconds(_pts90);
 }
 
 - (CFTimeInterval)duration {
-    return CMTimeGetSeconds(_duration90);
+    if (CMTIME_IS_VALID(_duration90)) {
+        return CMTimeGetSeconds(_duration90);
+    }
+    return NAN;
 }
 
 - (void)setDurationFromNext:(Frame *)nextFrame {
@@ -71,18 +83,15 @@ static inline NSString *FQLogPrefix(void) {
     return CMTIME_IS_VALID(_duration90);
 }
 
-- (void)dealloc {
-    //FQLog(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, CMTimeGetSeconds(_pts90));
-
-    // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
-    // so we don't need to CFRetain in init, but do need to release it
-    CFRelease(_sampleBuffer);
-}
-
-#ifdef FRAME_QUEUE_VERBOSE
+// Debug output when using %@
 - (NSString *)description {
-    return [NSString stringWithFormat:@"{%d / %f}", self.frameNumber, self.pts];
+    return [NSString stringWithFormat:@"{Frame: %d, type %@, pts90 %lld, pts %.3f ms, duration %@}",
+        self.frameNumber,
+        self.frameType == 1 ? @"IDR" : @"PFRAME",
+        self.pts90.value,
+        self.pts * 1000.0,
+        [self durationIsValid] ? [ NSString stringWithFormat:@"%.3f ms", self.duration * 1000.0] : @"--"
+    ];
 }
-#endif
 
 @end

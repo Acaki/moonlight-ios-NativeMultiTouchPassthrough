@@ -7,10 +7,11 @@ typedef enum {
     PLOT_FRAMETIME = 0,
     PLOT_HOST_FRAMETIME,
     PLOT_QUEUED_FRAMES,
-    PLOT_DRIFT,
+    PLOT_DROPPED,
+    PLOT_DL_AVAILTIME,
+
     PLOT_DISPLAYLINK,
     PLOT_DECODE,
-    PLOT_DROPPED,
     PLOT_FRAME_BYTES,
     PlotCount
 } PlotType;
@@ -20,6 +21,12 @@ typedef enum {
     PLOT_LABEL_MIN_MAX_AVG_INT,
     PLOT_LABEL_TOTAL_INT
 } PlotLabelType;
+
+typedef enum {
+    PLOT_HIDDEN,
+    PLOT_LEFT,
+    PLOT_RIGHT
+} PlotSide;
 
 typedef struct {
     float min;
@@ -44,5 +51,4 @@ typedef struct {
     PlotMetrics decodeMetrics;
     PlotMetrics frameQueueMetrics;
     PlotMetrics frameDropMetrics;
-    FramePacingMode framePacingMode;
 } video_stats_t;

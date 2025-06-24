@@ -51,8 +51,6 @@
 		A19562AD2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
 		A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
 		A1967D9B2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
-		A1967DB62DF3943E00EFC5CF /* FrameQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967DB52DF3943900EFC5CF /* FrameQueue.m */; };
-		A1967DB72DF3943E00EFC5CF /* FrameQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967DB52DF3943900EFC5CF /* FrameQueue.m */; };
 		A1A777DC2DDBEC5500E071D8 /* imgui_widgets.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777DB2DDBEC5500E071D8 /* imgui_widgets.cpp */; };
 		A1A777DD2DDBEC5500E071D8 /* imgui_demo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D52DDBEC5500E071D8 /* imgui_demo.cpp */; };
 		A1A777DF2DDBEC5500E071D8 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777D42DDBEC5500E071D8 /* imgui.cpp */; };
@@ -65,6 +63,9 @@
 		A1A777E72DDBEC5500E071D8 /* imgui_tables.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1A777DA2DDBEC5500E071D8 /* imgui_tables.cpp */; };
 		A1D0DEAD2E06018400086726 /* Frame.m in Sources */ = {isa = PBXBuildFile; fileRef = A1D0DEAC2E06018200086726 /* Frame.m */; };
 		A1D0DEAE2E06018400086726 /* Frame.m in Sources */ = {isa = PBXBuildFile; fileRef = A1D0DEAC2E06018200086726 /* Frame.m */; };
+		A1D406AE2E0A77AC00DC0A77 /* FrameQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = A1D406AD2E0A77AC00DC0A77 /* FrameQueue.m */; };
+		A1D406AF2E0A77AC00DC0A77 /* FrameQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = A1D406AD2E0A77AC00DC0A77 /* FrameQueue.m */; };
+		A1D406B02E0A77AC00DC0A77 /* FrameQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = A1D406AD2E0A77AC00DC0A77 /* FrameQueue.m */; };
 		DC1F5A07206436B20037755F /* ConnectionHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = DC1F5A06206436B20037755F /* ConnectionHelper.m */; };
 		F74BEF9C2C1A705600224667 /* OpenSSL in Frameworks */ = {isa = PBXBuildFile; productRef = F74BEF9B2C1A705600224667 /* OpenSSL */; };
 		F74BEFA42C1A80E400224667 /* OpenSSL in Frameworks */ = {isa = PBXBuildFile; productRef = F74BEFA32C1A80E400224667 /* OpenSSL */; };
@@ -253,12 +254,9 @@
 		A13F90582DFC3C5C0010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A13F905C2DFC3C710010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A13F90E22DFD2DE10010BB0F /* MoonlightTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MoonlightTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A179C7B02DF72DAF00901300 /* Queue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Queue.h; sourceTree = "<group>"; };
 		A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = imgui_impl_metal.mm; sourceTree = "<group>"; };
 		A1967D992DEE419B00EFC5CF /* FloatBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FloatBuffer.m; sourceTree = "<group>"; };
 		A1967DB32DF036B800EFC5CF /* Plot.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Plot.h; sourceTree = "<group>"; };
-		A1967DB42DF3943200EFC5CF /* FrameQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameQueue.h; sourceTree = "<group>"; };
-		A1967DB52DF3943900EFC5CF /* FrameQueue.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameQueue.m; sourceTree = "<group>"; };
 		A1A777D22DDBEC5500E071D8 /* imconfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imconfig.h; path = ../third_party/imgui/imconfig.h; sourceTree = "<group>"; };
 		A1A777D32DDBEC5500E071D8 /* imgui.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imgui.h; path = ../third_party/imgui/imgui.h; sourceTree = "<group>"; };
 		A1A777D42DDBEC5500E071D8 /* imgui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui.cpp; path = ../third_party/imgui/imgui.cpp; sourceTree = "<group>"; };
@@ -270,6 +268,8 @@
 		A1A777DB2DDBEC5500E071D8 /* imgui_widgets.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_widgets.cpp; path = ../third_party/imgui/imgui_widgets.cpp; sourceTree = "<group>"; };
 		A1D0DEAB2E06013600086726 /* Frame.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Frame.h; sourceTree = "<group>"; };
 		A1D0DEAC2E06018200086726 /* Frame.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Frame.m; sourceTree = "<group>"; };
+		A1D406AC2E0A77AC00DC0A77 /* FrameQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrameQueue.h; sourceTree = "<group>"; };
+		A1D406AD2E0A77AC00DC0A77 /* FrameQueue.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FrameQueue.m; sourceTree = "<group>"; };
 		A1EBD2F52DD94CE800F3BF4B /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		A1EBD2F62DD94CE900F3BF4B /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		A1EBD2F92DD94CFC00F3BF4B /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS18.5.sdk/System/Library/Frameworks/MetalKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -643,8 +643,6 @@
 		FB89461519F646E200339C8A /* Stream */ = {
 			isa = PBXGroup;
 			children = (
-				A1967DB52DF3943900EFC5CF /* FrameQueue.m */,
-				A1967DB42DF3943200EFC5CF /* FrameQueue.h */,
 				FB89461619F646E200339C8A /* Connection.h */,
 				FB89461719F646E200339C8A /* Connection.m */,
 				FB89461819F646E200339C8A /* StreamConfiguration.h */,
@@ -661,9 +659,10 @@
 		FB89461E19F646E200339C8A /* Utility */ = {
 			isa = PBXGroup;
 			children = (
+				A1D406AC2E0A77AC00DC0A77 /* FrameQueue.h */,
+				A1D406AD2E0A77AC00DC0A77 /* FrameQueue.m */,
 				A1D0DEAC2E06018200086726 /* Frame.m */,
 				A1D0DEAB2E06013600086726 /* Frame.h */,
-				A179C7B02DF72DAF00901300 /* Queue.h */,
 				A1967DB32DF036B800EFC5CF /* Plot.h */,
 				A10BC62E2DE8E65F00905783 /* BandwidthTracker.h */,
 				A10BC62B2DE8E65800905783 /* BandwidthTracker.m */,
@@ -982,6 +981,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1D406AE2E0A77AC00DC0A77 /* FrameQueue.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1020,9 +1020,9 @@
 				FB1A67D1213245F800507771 /* TemporaryHost.m in Sources */,
 				FB1A67D3213245F800507771 /* TemporarySettings.m in Sources */,
 				4A37FDA52DCAD28F00441192 /* PaddedLabel.m in Sources */,
-				A1967DB72DF3943E00EFC5CF /* FrameQueue.m in Sources */,
 				FB1A67C3213245EA00507771 /* AppAssetManager.m in Sources */,
 				A19562AC2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */,
+				A1D406B02E0A77AC00DC0A77 /* FrameQueue.m in Sources */,
 				A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */,
 				FB1A67C5213245EA00507771 /* AppAssetRetriever.m in Sources */,
 				FB1A67C7213245EA00507771 /* PairManager.m in Sources */,
@@ -1087,8 +1087,8 @@
 				A1A777E12DDBEC5500E071D8 /* imgui_tables.cpp in Sources */,
 				FB89462D19F646E200339C8A /* MDNSManager.m in Sources */,
 				FB89462B19F646E200339C8A /* StreamView.m in Sources */,
+				A1D406AF2E0A77AC00DC0A77 /* FrameQueue.m in Sources */,
 				FB4678FA1A55FFAD00377732 /* DiscoveryManager.m in Sources */,
-				A1967DB62DF3943E00EFC5CF /* FrameQueue.m in Sources */,
 				98D5856D1C0EA79600F6CC00 /* TemporaryHost.m in Sources */,
 				FB89463519F646E200339C8A /* MainFrameViewController.m in Sources */,
 				FBD1C8E21A8AD71400C6703C /* Logger.m in Sources */,

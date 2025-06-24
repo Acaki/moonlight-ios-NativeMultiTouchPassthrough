@@ -921,7 +921,14 @@ static NSMutableSet* hostList;
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-        
+
+#if DEBUG
+    // Don't run the rest of the app when running unit tests
+    if (NSClassFromString(@"XCTest")) {
+        return;
+    }
+#endif
+
 #if !TARGET_OS_TV
     // Set the side bar button action. When it's tapped, it'll show the sidebar.
     [_settingsButton setTarget:self.revealViewController];
