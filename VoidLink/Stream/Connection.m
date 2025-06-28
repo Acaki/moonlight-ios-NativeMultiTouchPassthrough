@@ -238,7 +238,7 @@ int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, v
         
     SDL_zero(want);
     want.freq = opusConfig->sampleRate;
-    want.format = AUDIO_S16;
+    want.format = AUDIO_F32;
     want.channels = opusConfig->channelCount;
     want.samples = opusConfig->samplesPerFrame;
 
@@ -250,7 +250,7 @@ int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, v
     }
     
     audioConfig = *opusConfig;
-    audioFrameSize = opusConfig->samplesPerFrame * sizeof(short) * opusConfig->channelCount;
+    audioFrameSize = opusConfig->samplesPerFrame * sizeof(float) * opusConfig->channelCount;
     audioBuffer = SDL_malloc(audioFrameSize);
     if (audioBuffer == NULL) {
         Log(LOG_E, @"Failed to allocate audio frame buffer");
@@ -308,9 +308,13 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
     if (LiGetPendingAudioDuration() > 30) {
         return;
     }
-    
-    decodeLen = opus_multistream_decode(opusDecoder, (unsigned char *)sampleData, sampleLength,
-                                        (short*)audioBuffer, audioConfig.samplesPerFrame, 0);
+
+    decodeLen = opus_multistream_decode_float(opusDecoder,
+                                              (unsigned char*)sampleData,
+                                              sampleLength,
+                                              (float*)audioBuffer,
+                                              audioConfig.samplesPerFrame,
+                                              0);
     if (decodeLen > 0) {
         // Provide backpressure on the queue to ensure too many frames don't build up
         // in SDL's audio queue.
@@ -320,7 +324,7 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
         
         if (SDL_QueueAudio(audioDevice,
                            audioBuffer,
-                           sizeof(short) * decodeLen * audioConfig.channelCount) < 0) {
+                           sizeof(float) * decodeLen * audioConfig.channelCount) < 0) {
             Log(LOG_E, @"Failed to queue audio sample: %s\n", SDL_GetError());
         }
     }
