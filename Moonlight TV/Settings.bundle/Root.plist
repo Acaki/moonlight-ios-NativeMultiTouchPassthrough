@@ -38,6 +38,44 @@
 		</dict>
 		<dict>
 			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>Request HDR Video</string>
+			<key>Key</key>
+			<string>enableHdr</string>
+			<key>DefaultValue</key>
+			<false/>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>Audio Configuration</string>
+			<key>Key</key>
+			<string>audioConfig</string>
+			<key>DefaultValue</key>
+			<string>2</string>
+			<key>Titles</key>
+			<array>
+				<string>Stereo</string>
+				<string>LPCM 5.1</string>
+				<string>LPCM 7.1</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>2</string>
+				<string>6</string>
+				<string>8</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSGroupSpecifier</string>
+			<key>Title</key>
+			<string>Enable Match Content Rate for best results</string>
+		</dict>
+		<dict>
+			<key>Type</key>
 			<string>PSMultiValueSpecifier</string>
 			<key>Title</key>
 			<string>Frame Rate</string>
@@ -47,11 +85,13 @@
 			<string>60</string>
 			<key>Values</key>
 			<array>
+				<string>24</string>
 				<string>30</string>
 				<string>60</string>
 			</array>
 			<key>Titles</key>
 			<array>
+				<string>24 FPS</string>
 				<string>30 FPS</string>
 				<string>60 FPS</string>
 			</array>
@@ -94,28 +134,6 @@
 				<string>80000</string>
 				<string>100000</string>
 				<string>150000</string>
-			</array>
-		</dict>
-		<dict>
-			<key>Type</key>
-			<string>PSMultiValueSpecifier</string>
-			<key>Title</key>
-			<string>Audio Configuration</string>
-			<key>Key</key>
-			<string>audioConfig</string>
-			<key>DefaultValue</key>
-			<string>2</string>
-			<key>Titles</key>
-			<array>
-				<string>Stereo</string>
-				<string>LPCM 5.1</string>
-				<string>LPCM 7.1</string>
-			</array>
-			<key>Values</key>
-			<array>
-				<string>2</string>
-				<string>6</string>
-				<string>8</string>
 			</array>
 		</dict>
 		<dict>
@@ -233,16 +251,6 @@
 				<string>4</string>
 				<string>5</string>
 			</array>
-		</dict>
-		<dict>
-			<key>Type</key>
-			<string>PSToggleSwitchSpecifier</string>
-			<key>Title</key>
-			<string>Request HDR Video</string>
-			<key>Key</key>
-			<string>enableHdr</string>
-			<key>DefaultValue</key>
-			<false/>
 		</dict>
 		<dict>
 			<key>Type</key>

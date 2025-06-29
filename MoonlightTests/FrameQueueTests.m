@@ -2,8 +2,6 @@
 #import <XCTest/XCTest.h>
 #import <CoreMedia/CoreMedia.h>
 
-//#define FRAME_QUEUE_VERBOSE
-
 #import "FrameQueue.h"
 #import "Logger.h"
 #include "Limelight.h"
@@ -101,7 +99,7 @@
         [self.queue enqueue:[self makeFrame]];
     }
     XCTAssertEqual([self.queue count], 3);
-    XCTAssertEqual([self.queue dropCount], 6);
+    XCTAssertEqual([[self.queue frameDropMetrics] total], 6);
     Log(LOG_I, @"queue after overflow: %@", self.queue);
     for (NSNumber *expected in @[@5, @7, @9]) {
         Frame *frame = [self.queue dequeue];
@@ -127,7 +125,7 @@
         [self.queue enqueue:[self makeFrame]];
     }
     XCTAssertEqual([self.queue count], 8);
-    XCTAssertEqual([self.queue dropCount], 3);
+    XCTAssertEqual([[self.queue frameDropMetrics] total], 3);
     Log(LOG_I, @"queue after overflow: %@", self.queue);
 
     for (NSNumber *expected in @[@1, @2, @3, @4, @5, @7, @9, @11]) {

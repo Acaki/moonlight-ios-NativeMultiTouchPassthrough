@@ -1,33 +1,6 @@
+#include <Limelight.h>
 #import "Frame.h"
-
-// The logging in this class is very heavy
-#if !defined(NDEBUG)
-//# define FRAME_QUEUE_VERBOSE
-#endif
-
-static inline NSString *FQQoSString(qos_class_t qos) {
-    switch (qos) {
-        case QOS_CLASS_USER_INTERACTIVE: return @"UI-25";
-        case QOS_CLASS_USER_INITIATED:   return @"IN-19";
-        case QOS_CLASS_DEFAULT:          return @"DF-15";
-        case QOS_CLASS_UTILITY:          return @"UT-11";
-        case QOS_CLASS_BACKGROUND:       return @"BG-09";
-        default:                         return [NSString stringWithFormat:@"??-%d", qos];
-    }
-}
-
-static inline NSString *FQLogPrefix(void) {
-    CFTimeInterval now = CACurrentMediaTime();
-    NSString *qos = FQQoSString(qos_class_self());
-    return [NSString stringWithFormat:@"[%.3f] [%@]", now, qos];
-}
-
-#if defined(FRAME_QUEUE_VERBOSE)
-  #define FQLog(level, fmt, ...) \
-    Log(level, @"%@ " fmt, FQLogPrefix(), ##__VA_ARGS__)
-#else
-  #define FQLog(level, fmt, ...) do {} while(0)
-#endif
+#import "Logger.h"
 
 @implementation Frame
 
@@ -42,9 +15,9 @@ static inline NSString *FQLogPrefix(void) {
         _pts90        = CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer);
         _duration90   = kCMTimeInvalid;
 
-//        FQLog(LOG_I, @"init Frame %d - type %@ [host pts %.3f]",
-//            _frameNumber, _frameType == FRAME_TYPE_IDR ? @"IDR" : @"P",
-//            CMTimeGetSeconds(_pts90));
+        FQLog(LOG_I, @"init Frame %d - type %@ [host pts %.3f]",
+            _frameNumber, _frameType == FRAME_TYPE_IDR ? @"IDR" : @"P",
+            CMTimeGetSeconds(_pts90));
     }
     return self;
 }

@@ -842,7 +842,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
           // Dispatch onto our higher priority queue, should be ok as async
           dispatch_async(self->_vtq, ^{
               Frame *frame = [[Frame alloc] initWithSampleBuffer:sampleBuffer frameNumber:frameNumber frameType:frameType];
-              [self->_frameQueue enqueue:frame];
+              int framesDropped = [self->_frameQueue enqueue:frame];
 
               // TODO: queued & dropped frames may animate better if captured in displayLink
               static PlotMetrics frameQueueMetrics = {};
@@ -851,11 +851,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                                               plotMetrics:&frameQueueMetrics];
               [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
 
-              static PlotMetrics frameDropMetrics = {};
-              [self->_callbacks observeFloatReturnMetrics:PLOT_DROPPED
-                                                    value:[self->_frameQueue dropCount]
-                                              plotMetrics:&frameDropMetrics];
-              [self safeCopyMetricsTo:&self->_frameDropMetrics from:&frameDropMetrics];
+              [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
               // It's important we capture host metrics on the incoming thread, as this frame object
               // may have been dropped by the above enqueue

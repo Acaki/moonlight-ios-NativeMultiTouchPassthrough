@@ -1,80 +1,42 @@
 @import AVFoundation;
 @import VideoToolbox;
 
-#import <objc/runtime.h>  // for objc_retain/objc_release
 #import <os/lock.h>
 #import <Limelight.h>
 #import "Logger.h"
+#import "FloatBuffer.h"
 #import "FrameQueue.h"
 
-// The logging in this class is very heavy
-#if !defined(NDEBUG)
-//# define FRAME_QUEUE_VERBOSE
-#endif
-
-static inline NSString *FQQoSString(qos_class_t qos) {
-    switch (qos) {
-        case QOS_CLASS_USER_INTERACTIVE: return @"UI-25";
-        case QOS_CLASS_USER_INITIATED:   return @"IN-19";
-        case QOS_CLASS_DEFAULT:          return @"DF-15";
-        case QOS_CLASS_UTILITY:          return @"UT-11";
-        case QOS_CLASS_BACKGROUND:       return @"BG-09";
-        default:                         return [NSString stringWithFormat:@"??-%d", qos];
-    }
-}
-
-static inline NSString *FQLogPrefix(void) {
-    CFTimeInterval now = CACurrentMediaTime();
-    NSString *qos = FQQoSString(qos_class_self());
-    return [NSString stringWithFormat:@"[%.3f] [%@]", now, qos];
-}
-
-#if defined(FRAME_QUEUE_VERBOSE)
-  #define FQLog(level, fmt, ...) \
-    Log(level, @"%@ " fmt, FQLogPrefix(), ##__VA_ARGS__)
-#else
-  #define FQLog(level, fmt, ...) do {} while(0)
-#endif
-
 @implementation FrameQueue {
-    __unsafe_unretained Frame **_buffer;
-    int         _capacity;
-    int         _head;
-    int         _tail;
-    int         _count;
+    NSMutableArray<id> *_buffer;
+    int _capacity;
+    int _head;
+    int _tail;
+    int _count;
 
-    int         _arrivals;
-    int         _drops;
-    BOOL        _droppedLast;
-    int         _dropCount;
-    int         _tempHWM;
-    int         _framesIn;
-    CMTime      _ptsCorrection;
+    BOOL _droppedLast;
+    int _framesIn;
+    CMTime _ptsCorrection;
     os_unfair_lock _lock;
-    dispatch_semaphore_t _semaphore;
 }
-
-static int const MAX_HWM = 5;
-static int const WINDOW_SIZE = 1200;
 
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _arrivals         = 0;
-        _drops            = 0;
         _droppedLast      = NO;
-        _dropCount        = 0;
+        _frameDropMetrics = [[FloatBuffer alloc] initWithCapacity:512];
         _framesIn         = 0;
         _highWaterMark    = 2;
-        _tempHWM          = -1;
         _maxCapacity      = 15;
         _ptsCorrection    = CMTimeMake(0, 90000);
         _lock             = OS_UNFAIR_LOCK_INIT;
-        _semaphore        = dispatch_semaphore_create(0);
 
 	    // ring buffer
 	    _capacity = (int)_maxCapacity;
-        _buffer   = (__unsafe_unretained Frame **)calloc(_capacity, sizeof(Frame *));
+        _buffer = [NSMutableArray arrayWithCapacity:_capacity];
+        for (int i = 0; i < _capacity; i++) {
+            [_buffer addObject:[NSNull null]];
+        }
         _head = _tail = _count = 0;
 
         // ping estimatedFramerate to set initial last value
@@ -83,44 +45,30 @@ static int const WINDOW_SIZE = 1200;
 	return self;
 }
 
-- (void)dealloc {
-    // in case there are still frames in the buffer
-    while (_count--) {
-        CFRelease((__bridge CFTypeRef)_buffer[_head]);
-        _head = (_head + 1) % _capacity;
-    }
-    free(_buffer);
-}
-
-- (BOOL)_hasRoom {
-    return _count < _tempHWM;
-}
-
 // Push into buffer at _tail
 - (void)_pushFrame:(Frame *)frame {
-    CFRetain((__bridge CFTypeRef)frame);
-    _buffer[_tail] = frame;
+    [_buffer replaceObjectAtIndex:_tail withObject:frame];
     _tail = (_tail + 1) % _capacity;
     _count++;
 	FQLog(LOG_I, @"[-> %@ %d / %f] enqueue frame, queue size %d / %d",
 		frame.frameType == FRAME_TYPE_IDR ? @"IDR" : @"P",
 		frame.frameNumber, frame.pts, _count, _highWaterMark);
-    dispatch_semaphore_signal(_semaphore);
 }
 
 // Pop oldest frame from _head
 - (Frame *)_popFrame {
-    Frame *frame = _buffer[_head];
-    _buffer[_head] = nil;
+    id obj = _buffer[_head];
+    Frame *frame = (obj == [NSNull null] ? nil : obj);
+    [_buffer replaceObjectAtIndex:_head withObject:[NSNull null]];
     _head = (_head + 1) % _capacity;
     _count--;
-    CFRelease((__bridge CFTypeRef)frame);
     return frame;
 }
 
 // Peek next frame (without removing)
 - (Frame *)_peekFrame {
-    return _count > 0 ? _buffer[_head] : nil;
+    id frame = (_count > 0) ? _buffer[_head] : nil;
+    return (frame == [NSNull null]) ? nil : frame;
 }
 
 // enumerate in‐buffer frames
@@ -128,13 +76,12 @@ static int const WINDOW_SIZE = 1200;
     BOOL stop = NO;
     for (int i = 0; i < _count; i++) {
         int idx = (_head + i) % _capacity;
-        block(_buffer[idx], i, &stop);
+        block([_buffer objectAtIndex:idx], i, &stop);
         if (stop) break;
     }
 }
 
 - (void)_noteDroppedFrame:(Frame *)frame {
-    _dropCount++;
     if ([frame durationIsValid]) {
         _ptsCorrection = CMTimeAdd(_ptsCorrection, frame.duration90);
 		FQLog(LOG_W, @"dropped frame %d with duration %.3f ms", frame.frameNumber, frame.duration * 1000.0);
@@ -148,37 +95,19 @@ static int const WINDOW_SIZE = 1200;
     }
 }
 
-- (void)enqueue:(Frame *)frame {
+- (int)enqueue:(Frame *)frame {
     os_unfair_lock_lock(&_lock);
-
-    if (_tempHWM < 0) {
-		// user setting is _highWaterMark, only adjust _tempHWM
-        _tempHWM = (int)_highWaterMark;
-    }
-
-    // allow a bit of flex in buffer size
-    _arrivals++;
-    if (_arrivals >= WINDOW_SIZE) {
-        double dropRatio = (double)_drops / _arrivals;
-        if (dropRatio > 0.10 && _tempHWM < MAX_HWM) {
-            _tempHWM++;
-			Log(LOG_W, @"FrameQueue increasing high water mark to %d (dropRatio: %.2f)", _tempHWM, dropRatio);
-        } else if (dropRatio < 0.02 && _tempHWM > _highWaterMark) {
-            _tempHWM--;
-			Log(LOG_W, @"FrameQueue decreasing high water mark to %d (dropRatio: %.2f)", _tempHWM, dropRatio);
-        }
-        _arrivals = _drops = 0;
-    }
+    int dropCount = 0;
 
     // Always accept IDR frames, allow exceeding HWM
-    if (frame.frameType == FRAME_TYPE_IDR || [self _hasRoom]) {
+    if (frame.frameType == FRAME_TYPE_IDR || _count < _highWaterMark) {
         [self _pushFrame:frame];
         _droppedLast = NO;
     } else {
         if (!_droppedLast) {
 			// alternate between: drop newest...
             [self _noteDroppedFrame:frame];
-            _drops++;
+            dropCount = 1;
             _droppedLast = YES;
         } else {
             // and: drop oldest & enqueue new
@@ -186,7 +115,7 @@ static int const WINDOW_SIZE = 1200;
 				Frame *oldest = [self _popFrame];
                 [oldest setDurationFromNext:[self _peekFrame]];
                 [self _noteDroppedFrame:oldest];
-                _drops++;
+                dropCount = 1;
             }
             [self _pushFrame:frame];
             _droppedLast = NO;
@@ -195,7 +124,9 @@ static int const WINDOW_SIZE = 1200;
 	// regardless of drop status, every enqueue is a frame
     // for estimatedFramerate purposes
     _framesIn++;
+    [_frameDropMetrics addValue:(float)dropCount];
     os_unfair_lock_unlock(&_lock);
+    return dropCount;
 }
 
 - (Frame *)dequeue {
@@ -218,24 +149,24 @@ static int const WINDOW_SIZE = 1200;
 }
 
 - (Frame *)dequeueWithTimeout:(CFTimeInterval)timeout {
-    dispatch_time_t when = timeout > 0
-      ? dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC))
-      : DISPATCH_TIME_NOW;
+    CFTimeInterval start = CACurrentMediaTime();
+    CFTimeInterval deadline = start + timeout;
+    int round = 0;
 
-    if (dispatch_semaphore_wait(_semaphore, when) != 0) {
-		FQLog(LOG_I, @"dequeueWithTimeout timed out after %.3f ms", timeout * 1000.0);
-        return nil;
-    }
-    return [self dequeue];
-}
+    // Always attempt to dequeue at least once
+    do {
+        if (round > 0) {
+            usleep(100); // 0.1ms
+        }
+        Frame *frame = [self dequeue];
+        if (frame) {
+            return frame;
+        }
+        round++;
+    } while (CACurrentMediaTime() < deadline);
 
-// Number of frames dropped since the last time this was called
-- (int)dropCount {
-    os_unfair_lock_lock(&_lock);
-    int c = _dropCount;
-    _dropCount = 0;
-    os_unfair_lock_unlock(&_lock);
-    return c;
+    FQLog(LOG_I, @"dequeueWithTimeout timed out after %.3f ms", (CACurrentMediaTime() - start) * 1000.0);
+    return nil;
 }
 
 - (NSUInteger)count {
@@ -274,7 +205,7 @@ static int const WINDOW_SIZE = 1200;
     return fps;
 }
 
-// For use with NSog("%@", franeQueue);
+// For use with NSLog("%@", franeQueue);
 - (NSString *)description {
     __block NSMutableArray *parts = [NSMutableArray arrayWithCapacity:_count];
     [self _enumerateFrames:^(Frame *frame, NSUInteger idx, BOOL *stop) {

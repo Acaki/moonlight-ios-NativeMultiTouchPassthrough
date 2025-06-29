@@ -8,7 +8,7 @@ typedef enum {
     PLOT_HOST_FRAMETIME,
     PLOT_QUEUED_FRAMES,
     PLOT_DROPPED,
-    PLOT_DL_AVAILTIME,
+    PLOT_LATE,
 
     PLOT_DISPLAYLINK,
     PLOT_DECODE,
@@ -48,6 +48,7 @@ typedef struct {
     int maxHostProcessingLatency;
     int minHostProcessingLatency;
     CFTimeInterval displayRefreshRate;
+    float lateRatio;
     PlotMetrics decodeMetrics;
     PlotMetrics frameQueueMetrics;
     PlotMetrics frameDropMetrics;

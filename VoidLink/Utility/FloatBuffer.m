@@ -47,6 +47,10 @@
         free(_buffer);
         _buffer = NULL;
     }
+    if (_timestamps) {
+        free(_timestamps);
+        _timestamps = NULL;
+    }
 }
 
 - (void)addValue:(float)value {

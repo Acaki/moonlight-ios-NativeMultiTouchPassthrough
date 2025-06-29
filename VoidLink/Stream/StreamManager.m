@@ -181,7 +181,8 @@
     }
     
     float interval = stats.endTime - stats.startTime;
-    float fps = stats.totalFrames / interval;
+    float scalePlotMetrics = stats.frameDropMetrics.nsamples > 0 ? ((float)stats.frameDropMetrics.nsamples / stats.totalFrames) : 1.0f;
+    float fps = (stats.totalFrames - stats.networkDroppedFrames - (stats.frameDropMetrics.total / scalePlotMetrics)) / interval;
 
     double avgVideoMbps = [_connection getBwTracker].averageMbps;
     double peakVideoMbps = [_connection getBwTracker].peakMbps;
@@ -189,8 +190,8 @@
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\n"
             "Bitrate: %.1f Mbps, Peak: %.1f, Display: %.2f Hz\n"
             "%@"
-            "Frames buffered: %.1f, frame pacing: vsync\n"
-            "Frames dropped by network/pacing: %.1f%%/%.1f%%\n"
+            "Frames buffered: %.1f, missed DisplayLink (this stream): %.1f%%\n"
+            "Frames dropped by network/pacing jitter: %.1f%% / %.1f%%\n"
             "Average network latency: %@\n"
             "Decode time: %.2f/%.2f/%.2f ms",
             _config.width,
@@ -199,7 +200,7 @@
             [_connection getActiveCodecName],
             avgVideoMbps, peakVideoMbps, stats.displayRefreshRate,
             hostProcessingString,
-            stats.frameQueueMetrics.avg,
+            stats.frameQueueMetrics.avg, stats.lateRatio,
             (stats.networkDroppedFrames / stats.totalFrames) * 100.0,
             stats.frameDropMetrics.nsamples > 0 ? (stats.frameDropMetrics.total / stats.frameDropMetrics.nsamples) * 100.0 : 0.0f,
             latencyString,

@@ -692,12 +692,30 @@
     });
 }
 
+- (void)applicationDidFinishSwitchingModes:(NSNotification *)notification {
+#if TARGET_OS_TV
+    // Check the current refresh rate of the TV for a fractional NTSC rate such as 59.94
+    UIScreen *screen = [UIScreen mainScreen];
+
+    // XXX: I can see screen.currentMode.refreshRate in the debugger, but don't know how to access it :(
+
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:AVDisplayManagerModeSwitchEndNotification
+                                                  object:nil];
+#endif
+}
+
 - (void) updatePreferredDisplayMode:(BOOL)streamActive {
 #if TARGET_OS_TV
     if (@available(tvOS 11.2, *)) {
         UIWindow* window = [[[UIApplication sharedApplication] delegate] window];
         AVDisplayManager* displayManager = [window avDisplayManager];
-        
+
+        [[NSNotificationCenter defaultCenter] addObserver: self
+                                                 selector: @selector(applicationDidFinishSwitchingModes:)
+                                                     name: AVDisplayManagerModeSwitchEndNotification
+                                                   object: nil];
+
         // This logic comes from Kodi and MrMC
         if (streamActive) {
             int dynamicRange;
@@ -708,7 +726,7 @@
             else {
                 dynamicRange = 0; // SDR
             }
-            
+
             AVDisplayCriteria* displayCriteria = [[AVDisplayCriteria alloc] initWithRefreshRate:[_settings.framerate floatValue]
                                                                               videoDynamicRange:dynamicRange];
             displayManager.preferredDisplayCriteria = displayCriteria;

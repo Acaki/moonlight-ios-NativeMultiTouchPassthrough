@@ -72,12 +72,13 @@
         .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
-    _plots[PLOT_DL_AVAILTIME] = {
-        .title     = "Usable time per vsync",
+    _plots[PLOT_LATE] = {
+        .title     = "Late callbacks",
+        .side      = PLOT_RIGHT,
         .labelType = PLOT_LABEL_MIN_MAX_AVG,
         .unit      = "ms",
-        .scaleMin  = (1000.0 / streamFps) / 2,
-        .scaleMax  = (1000.0 / streamFps) + 1,
+//        .scaleMin  = 10.0f,
+//        .scaleMax  = 35.0f,
         .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
     };
 
@@ -351,7 +352,7 @@ inline static float getValue(void *buffer, int idx) {
         case 1194: // Vision Pro (iPad mode) 1194x834 2x
             graphW = 379.0f; graphH = 36.0f; break;
         case 1133: // iPad Mini 1133x744 2x
-            graphW = 360.0f; graphH = 33.0f; break;
+            graphW = 360.0f; graphH = 45.0f; break;
         case 874: // iPhone 16 Pro 874x402 3x
             graphW = 275.0f; graphH = 45.0f; break;
         // TODO:
@@ -377,11 +378,8 @@ inline static float getValue(void *buffer, int idx) {
     ImVec2 windowPos(10.0f, 10.0f);
     ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(0.0f, 0.0f));  // pivot (0,0) = top-left
     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
-    ImGuiWindowFlags_NoMove |
-    ImGuiWindowFlags_NoNavFocus |
-    ImGuiWindowFlags_NoBackground |
-    ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground |
+        ImGuiWindowFlags_NoSavedSettings;
     ImGui::Begin("##StatsLeft", nullptr, flags);
 
     // Dimensions of each graph
