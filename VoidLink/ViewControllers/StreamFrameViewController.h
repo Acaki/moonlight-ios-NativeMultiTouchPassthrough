@@ -9,6 +9,7 @@
 #import "Connection.h"
 #import "FloatBuffer.h"
 #import "ImGuiRenderer.h"
+#import "MetalViewController.h"
 #import "StreamConfiguration.h"
 #import "StreamView.h"
 
@@ -22,6 +23,7 @@
 @interface StreamFrameViewController : UIViewController <ConnectionCallbacks, ControllerSupportDelegate, UserInteractionDelegate, UIScrollViewDelegate>
 #endif
 @property (nonatomic) StreamConfiguration* streamConfig;
+@property (nonatomic, strong) MetalViewController *metalViewController;
 @property (nonatomic, strong) ImGuiRenderer *imguiView;
 
 -(void)updatePreferredDisplayMode:(BOOL)streamActive;

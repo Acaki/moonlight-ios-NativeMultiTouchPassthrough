@@ -45,7 +45,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     NSData *masteringDisplayColorVolume;
     NSData *contentLightLevelInfo;
     CMVideoFormatDescriptionRef formatDesc;
-    CMVideoFormatDescriptionRef formatDescImageBuffer;
     VTDecompressionSessionRef decompressionSession;
 
     CADisplayLink *_displayLink;
@@ -92,11 +91,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         formatDesc = nil;
     }
 
-    if (formatDescImageBuffer != nil) {
-        CFRelease(formatDescImageBuffer);
-        formatDescImageBuffer = nil;
-    }
-
     if (decompressionSession != nil){
         VTDecompressionSessionInvalidate(decompressionSession);
         CFRelease(decompressionSession);
@@ -120,7 +114,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     _streamAspectRatio = aspectRatio;
 
     parameterSetBuffers = [[NSMutableArray alloc] init];
-    _frameQueue = [[FrameQueue alloc] init];
+    _frameQueue = [FrameQueue sharedInstance];
     _maxRefreshRate = [[UIScreen mainScreen] maximumFramesPerSecond];
 
     DataManager* dataMan = [[DataManager alloc] init];
@@ -142,15 +136,15 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     // PACING_MODE_VSYNC:
     // Deliver 1 frame at each vsync interval. Ignores server pts timestamps.
     // Drop frames intelligently to maintain chosen queue size.
-    _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingQueue:)];
-
-    if (@available(iOS 15.0, tvOS 15.0, *)) {
-        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
-    }
-    else {
-        _displayLink.preferredFramesPerSecond = self->frameRate;
-    }
-    [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+//    _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(framePacingUsingQueue:)];
+//
+//    if (@available(iOS 15.0, tvOS 15.0, *)) {
+//        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
+//    }
+//    else {
+//        _displayLink.preferredFramesPerSecond = self->frameRate;
+//    }
+//    [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 
 - (void)setupDecompressionSession {
@@ -583,6 +577,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         formatDesc = NULL;
     }
 
+    Log(LOG_I, @"AV1 extensions: %@, format description: %@", extensions, formatDesc);
+
     ff_cbs_fragment_free(&cbsFrag);
     ff_cbs_close(&cbsCtx);
     return formatDesc;
@@ -799,71 +795,57 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 - (OSStatus)decodeFrameWithSampleBuffer:(CMSampleBufferRef)sampleBuffer
                             frameNumber:(int)frameNumber
                               frameType:(int)frameType
-                        decodeStartTime:(CFTimeInterval)decodeStartTime
-{
-    if (frameType == FRAME_TYPE_IDR || decompressionSession == nil) {
-        [self setupDecompressionSession];
-    }
+                        decodeStartTime:(CFTimeInterval)decodeStartTime {
+  if (frameType == FRAME_TYPE_IDR || decompressionSession == nil) {
+    [self setupDecompressionSession];
+  }
 
-    OSStatus status = VTDecompressionSessionDecodeFrameWithOutputHandler(
-        decompressionSession, sampleBuffer, 0, NULL,
-        ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
-          if (status != noErr) {
-              NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];
-              Log(LOG_E, @"Decompression session error: %@", error);
-              LiRequestIdrFrame();
-              return;
-          }
+  OSStatus status = VTDecompressionSessionDecodeFrameWithOutputHandler(
+    decompressionSession,
+    sampleBuffer,
+    0,
+    NULL,
+    ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
+      if (status != noErr || !imageBuffer) {
+        NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];
+        Log(LOG_E, @"Decompression session error: %@", error);
+        LiRequestIdrFrame();
+        return;
+      }
 
-          // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
-          static PlotMetrics decodeMetrics = {};
-          [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE
-                                                value:(CACurrentMediaTime() - decodeStartTime) * 1000.0
-                                          plotMetrics:&decodeMetrics];
-          [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
+      // retain the pixelBuffer here so it survives the dispatch
+      CVPixelBufferRef pixelBuffer = CVPixelBufferRetain((CVPixelBufferRef)imageBuffer);
 
-          if (self->formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->formatDescImageBuffer, imageBuffer)) {
-              OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->formatDescImageBuffer));
-              if (res != noErr) {
-                  Log(LOG_E, @"Failed to create video format description from imageBuffer");
-                  return;
-              }
-          }
+      //Log(LOG_D, @"Decoded to PixelBuffer %@", pixelBuffer);
 
-          CMSampleBufferRef sampleBuffer;
-          CMSampleTimingInfo sampleTiming = {kCMTimeInvalid, presentationTimestamp, presentationDuration};
+      // Dispatch onto our higher priority queue
+      dispatch_async(self->_vtq, ^{
+        Frame *frame = [[Frame alloc] initWithPixelBufffer:pixelBuffer frameNumber:frameNumber frameType:frameType pts:presentationTimestamp];
+        [frame setFormatDesc:self->formatDesc];
+        int framesDropped = [self->_frameQueue enqueue:frame];
 
-          OSStatus err = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, imageBuffer, self->formatDescImageBuffer, &sampleTiming, &sampleBuffer);
-          if (err != noErr) {
-              Log(LOG_E, @"Error creating sample buffer for decompressed image buffer %d", (int)err);
-              return;
-          }
+        static PlotMetrics frameQueueMetrics = {};
+        [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES value:[self->_frameQueue count] plotMetrics:&frameQueueMetrics];
+        [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
 
-          // Dispatch onto our higher priority queue, should be ok as async
-          dispatch_async(self->_vtq, ^{
-              Frame *frame = [[Frame alloc] initWithSampleBuffer:sampleBuffer frameNumber:frameNumber frameType:frameType];
-              int framesDropped = [self->_frameQueue enqueue:frame];
+        [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
-              // TODO: queued & dropped frames may animate better if captured in displayLink
-              static PlotMetrics frameQueueMetrics = {};
-              [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES
-                                                    value:[self->_frameQueue count]
-                                              plotMetrics:&frameQueueMetrics];
-              [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
+        // It's important we capture host metrics on the incoming thread, as this frame object
+        // may have been dropped by the above enqueue
+        static CFTimeInterval lastHostFrame = 0.0f;
+        if (lastHostFrame != 0) {
+          [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
+        }
+        lastHostFrame = frame.pts;
 
-              [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
+        // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
+        static PlotMetrics decodeMetrics = {};
+        [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE value:(CACurrentMediaTime() - decodeStartTime) * 1000.0 plotMetrics:&decodeMetrics];
+        [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
+      });
+    });
 
-              // It's important we capture host metrics on the incoming thread, as this frame object
-              // may have been dropped by the above enqueue
-              static CFTimeInterval lastHostFrame = 0.0f;
-              if (lastHostFrame != 0) {
-                  [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
-              }
-              lastHostFrame = frame.pts;
-            });
-        });
-
-    return status;
+  return status;
 }
 
 - (void)setHdrMode:(BOOL)enabled {

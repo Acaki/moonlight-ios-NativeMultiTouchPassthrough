@@ -20,7 +20,30 @@
     os_unfair_lock _lock;
 }
 
-- (instancetype)init {
++ (instancetype)sharedInstance {
+    static FrameQueue *sharedInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[super allocWithZone:NULL] _initSingleton];
+    });
+    return sharedInstance;
+}
+
+// Prevent others from using alloc/init directly
++ (instancetype)allocWithZone:(struct _NSZone *)zone {
+    return [self sharedInstance];
+}
+
+// If someone tries to copy it, just return the same instance
+- (id)copyWithZone:(NSZone *)zone {
+    return self;
+}
+
+- (id)mutableCopyWithZone:(NSZone *)zone {
+    return self;
+}
+
+- (instancetype)_initSingleton {
     self = [super init];
     if (self) {
         _droppedLast      = NO;

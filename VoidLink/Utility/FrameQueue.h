@@ -13,6 +13,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSUInteger highWaterMark;
 @property (nonatomic, readonly) NSUInteger maxCapacity;
 
++ (instancetype)sharedInstance;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 - (void)clear;
 - (int)enqueue:(Frame *)frame;
 - (nullable Frame *)dequeue;

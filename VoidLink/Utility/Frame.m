@@ -1,14 +1,41 @@
-#include <Limelight.h>
+#import <CoreVideo/CVImageBuffer.h>
 #import "Frame.h"
 #import "Logger.h"
+#include <Limelight.h>
 
-@implementation Frame
+@implementation Frame {
+    CFDictionaryRef _formatDescExt;
+}
+
+- (instancetype)initWithPixelBufffer:(CVPixelBufferRef)pixelBuffer
+                         frameNumber:(int)frameNumber
+                           frameType:(int)frameType
+                                 pts:(CMTime)pts {
+    self = [super init];
+    if (self) {
+        _formatDescExt = nil;
+        _frameNumber  = frameNumber;
+        _frameType    = frameType;
+        _pixelBuffer  = pixelBuffer; // already retained
+        _sampleBuffer = nil;
+
+        // 90 kHz pts from RTP
+        _pts90        = pts;
+        _duration90   = kCMTimeInvalid;
+
+        FQLog(LOG_I, @"init Frame %d - type %@ [host pts %.3f]",
+              _frameNumber, _frameType == FRAME_TYPE_IDR ? @"IDR" : @"P",
+              CMTimeGetSeconds(_pts90));
+    }
+    return self;
+}
 
 - (instancetype)initWithSampleBuffer:(CMSampleBufferRef)sampleBuffer frameNumber:(int)frameNumber frameType:(int)frameType {
     self = [super init];
     if (self) {
         _frameNumber  = frameNumber;
         _frameType    = frameType;
+        _pixelBuffer  = nil;
         _sampleBuffer = sampleBuffer;
 
         // 90 kHz pts from RTP
@@ -23,11 +50,37 @@
 }
 
 - (void)dealloc {
-    //FQLog(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, CMTimeGetSeconds(_pts90));
+    FQLog(LOG_I, @"[%d / %f] Frame dealloc", _frameNumber, CMTimeGetSeconds(_pts90));
+
+    if (_formatDesc) {
+        CFRelease(_formatDesc);
+    }
+    if (_formatDescExt) {
+        CFRelease(_formatDescExt);
+    }
+    if (_pixelBuffer) {
+        CVPixelBufferRelease(_pixelBuffer);
+    }
 
     // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
     // so we don't need to CFRetain in init, but do need to release it
-    CFRelease(_sampleBuffer);
+    if (_sampleBuffer) {
+        CFRelease(_sampleBuffer);
+    }
+}
+
+- (void)setFormatDesc:(CMVideoFormatDescriptionRef)formatDesc {
+    if (_formatDesc) {
+        CFRelease(_formatDesc);
+    }
+    _formatDesc = CFRetain(formatDesc);
+}
+
+- (CFDictionaryRef)getFormatDescExtensions {
+    if (!_formatDescExt) {
+        _formatDescExt = CFRetain(CMFormatDescriptionGetExtensions(_formatDesc));
+    }
+    return _formatDescExt;
 }
 
 - (CFTimeInterval)pts {
@@ -54,6 +107,20 @@
 
 - (BOOL)durationIsValid {
     return CMTIME_IS_VALID(_duration90);
+}
+
+- (size_t)width {
+    if (_pixelBuffer) {
+        return CVPixelBufferGetWidth(_pixelBuffer);
+    }
+    return -1;
+}
+
+- (size_t)height {
+    if (_pixelBuffer) {
+        return CVPixelBufferGetHeight(_pixelBuffer);
+    }
+    return -1;
 }
 
 // Debug output when using %@

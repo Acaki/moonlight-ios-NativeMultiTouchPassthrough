@@ -87,12 +87,14 @@
 			<array>
 				<string>24</string>
 				<string>30</string>
+				<string>59.94</string>
 				<string>60</string>
 			</array>
 			<key>Titles</key>
 			<array>
 				<string>24 FPS</string>
 				<string>30 FPS</string>
+				<string>59.94 FPS (experimental)</string>
 				<string>60 FPS</string>
 			</array>
 		</dict>

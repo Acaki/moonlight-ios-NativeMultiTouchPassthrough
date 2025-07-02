@@ -32,8 +32,8 @@
     
     self.bitrate = [NSNumber numberWithInteger:[[NSUserDefaults standardUserDefaults] integerForKey:@"bitrate"]];
     assert([self.bitrate intValue] != 0);
-    self.framerate = [NSNumber numberWithInteger:[[NSUserDefaults standardUserDefaults] integerForKey:@"framerate"]];
-    assert([self.framerate intValue] != 0);
+    self.framerate = [NSNumber numberWithDouble:[[NSUserDefaults standardUserDefaults] doubleForKey:@"framerate"]];
+    assert([self.framerate doubleValue] != 0.0);
     self.audioConfig = [NSNumber numberWithInteger:[[NSUserDefaults standardUserDefaults] integerForKey:@"audioConfig"]];
     assert([self.audioConfig intValue] != 0);
     self.preferredCodec = (typeof(self.preferredCodec))[[NSUserDefaults standardUserDefaults] integerForKey:@"preferredCodec"];

@@ -15,6 +15,7 @@
 #import "PaddedLabel.h"
 #import "ImGuiRenderer.h"
 #import "RelativeTouchHandler.h"
+#import "MetalVideoRenderer.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -185,7 +186,7 @@
     [_tipLabel setUserInteractionEnabled:NO];
     
 #if TARGET_OS_TV
-    [_tipLabel setText:@"Tip: Tap the Play/Pause button on the Apple TV Remote to disconnect from your PC. Double-tap Down for stats."];
+    [_tipLabel setText:@"Tip: Tap the Play/Pause button on the Apple TV Remote to disconnect from your PC. Double-click Select for stats."];
 #else
     [_tipLabel setText:@"Tip: Swipe from the left edge to disconnect from your PC. Swipe down with 2 fingers for stats."];
 #endif
@@ -253,6 +254,13 @@
     [self.view addSubview:_stageLabel];
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
+
+    // MetalKit view for video
+    self.metalViewController = [[MetalViewController alloc] initWithFrame:self.view.bounds
+                                                                framerate:[_settings.framerate floatValue]
+                                                                enableHdr:_settings.enableHdr];
+    [self.view addSubview:self.metalViewController.view];
+    [self.view bringSubviewToFront:self.metalViewController.view];
 
     // Make a MetalKit view for ImGui
     self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds
@@ -727,7 +735,9 @@
                 dynamicRange = 0; // SDR
             }
 
-            AVDisplayCriteria* displayCriteria = [[AVDisplayCriteria alloc] initWithRefreshRate:[_settings.framerate floatValue]
+            float refreshRate = [_settings.framerate floatValue];
+            Log(LOG_I, @"Changing TV refresh rate to %f Hz %@", refreshRate, dynamicRange == 2 ? @"HDR" : @"SDR");
+            AVDisplayCriteria* displayCriteria = [[AVDisplayCriteria alloc] initWithRefreshRate:refreshRate
                                                                               videoDynamicRange:dynamicRange];
             displayManager.preferredDisplayCriteria = displayCriteria;
         }
