@@ -1,6 +1,7 @@
-#import "ImGuiRenderer.h"
 #import <AVFoundation/AVFoundation.h>
 #import <Metal/Metal.h>
+#import "ImGuiRenderer.h"
+#import "ImGuiPlots.h"
 
 // This will fully disable ImGui by compiling it out. The in-app setting enableGraphs
 // will also remove all ImGui overhead.
@@ -32,82 +33,7 @@
     _device = MTLCreateSystemDefaultDevice();
     _commandQueue = [_device newCommandQueue];
 
-    // Graphs init, some still may be used for stats if enableGraphs is false
-    _plots = (PlotDef *)calloc(PlotCount, sizeof(PlotDef));
-
-    _plots[PLOT_FRAMETIME] = {
-        .title  = "Frametime",
-        .side   = PLOT_LEFT,
-        .unit   = "ms",
-        .scaleMin = (1000.0 / streamFps) - 1,
-        .scaleMax = 50.0f, // (1000.0 / streamFps) * 3,
-        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
-    };
-
-    _plots[PLOT_HOST_FRAMETIME] = {
-        .title  = "Host Frametime",
-        .side   = PLOT_LEFT,
-        .unit   = "ms",
-        .scaleMin = (1000.0 / streamFps) - 1,
-        .scaleMax = 50.0f, // (1000.0 / streamFps) * 3,
-        .buffer = [[FloatBuffer alloc] initWithCapacity:512]
-    };
-
-    _plots[PLOT_QUEUED_FRAMES] = {
-        .title       = "Frame queue",
-        .side        = PLOT_RIGHT,
-        .labelType   = PLOT_LABEL_MIN_MAX_AVG_INT,
-        .unit        = "",
-        .scaleMin    = -0.5,
-        .scaleMax    = 15,
-        .buffer      = [[FloatBuffer alloc] initWithCapacity:512]
-    };
-
-    _plots[PLOT_DROPPED] = {
-        .title     = "Frames dropped",
-        .side      = PLOT_RIGHT,
-        .labelType = PLOT_LABEL_TOTAL_INT,
-        .unit      = "",
-        .scaleTarget = 2,
-        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
-    };
-
-    _plots[PLOT_LATE] = {
-        .title     = "Late callbacks",
-        .side      = PLOT_RIGHT,
-        .labelType = PLOT_LABEL_MIN_MAX_AVG,
-        .unit      = "ms",
-//        .scaleMin  = 10.0f,
-//        .scaleMax  = 35.0f,
-        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
-    };
-
-    // not graphed, but used for stats
-
-    _plots[PLOT_DECODE] = {
-        .title     = "Decode time",
-        .labelType = PLOT_LABEL_MIN_MAX_AVG,
-        .unit      = "ms",
-        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
-    };
-
-    // disabled/unused
-
-    _plots[PLOT_DISPLAYLINK] = {
-        .title       = "DisplayLink interval",
-        .labelType   = PLOT_LABEL_MIN_MAX_AVG,
-        .unit        = "ms",
-        .scaleTarget = 1000.0 / self.mtkView.preferredFramesPerSecond,
-        .buffer      = [[FloatBuffer alloc] initWithCapacity:512]
-    };
-
-    _plots[PLOT_FRAME_BYTES] = {
-        .title     = "Bytes per frame",
-        .labelType = PLOT_LABEL_MIN_MAX_AVG,
-        .unit      = "KB",
-        .scaleMin  = 0.0f,
-        .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
-    };
+    _plots = [ImGuiPlots sharedInstance].plots;
 
     return self;
 }

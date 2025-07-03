@@ -175,6 +175,11 @@
     CFTimeInterval deltaTime = _previousTargetPresentationTimestamp - update.targetPresentationTimestamp;
     _previousTargetPresentationTimestamp = update.targetPresentationTimestamp;
 
+    CFTimeInterval now = CACurrentMediaTime();
+    FQLog(LOG_I, @"metalDisplayLink: %@ now %f, deadline %f, target pts %f (+%.3f ms after deadline)",
+        update.debugDescription, now, update.targetTimestamp, update.targetPresentationTimestamp,
+        (update.targetPresentationTimestamp - update.targetTimestamp) * 1000.0);
+
     [self renderUpdate:update with:deltaTime];
 }
 

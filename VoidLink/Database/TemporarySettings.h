@@ -36,6 +36,7 @@
 @property (nonatomic) BOOL statsOverlay;
 @property (nonatomic) BOOL enableGraphs;
 @property (nonatomic, retain) NSNumber * graphOpacity;
+@property (nonatomic, retain) NSNumber * renderingBackend;
 
 - (id) initFromSettings:(Settings*)settings;
 

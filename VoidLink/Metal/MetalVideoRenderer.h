@@ -1,6 +1,8 @@
 #import <QuartzCore/QuartzCore.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import "ConnectionCallbacks.h"
 #import "Frame.h"
+#import "Plot.h"
 
 @interface MetalVideoRenderer : NSObject
 

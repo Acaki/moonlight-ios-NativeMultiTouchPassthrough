@@ -4,7 +4,7 @@
 // When disabled, rendering occurs on a background thread, allowing
 // the UI to respond more quickly in some cases because events can
 // process asynchronously from potentially CPU-intensive rendering code.
-#define RENDER_ON_MAIN_THREAD 1
+#define RENDER_ON_MAIN_THREAD 0
 
 // When enabled, the drawable's size updates automatically whenever
 // the view resizes. When disabled, you can update the drawable's

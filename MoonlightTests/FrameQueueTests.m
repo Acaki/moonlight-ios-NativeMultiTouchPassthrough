@@ -16,7 +16,7 @@
 
 - (void)setUp {
     [super setUp];
-    self.queue = [[FrameQueue alloc] init];
+    self.queue = [FrameQueue sharedInstance];
     [self.queue setHighWaterMark:3];
     _frameNumber = 0;
 }
@@ -141,6 +141,7 @@
 
     [self.queue clear];
     XCTAssertEqual([self.queue count], 0);
+    XCTAssertEqual([[self.queue frameDropMetrics] total], 0);
     XCTAssertNil([self.queue dequeue]);
 }
 
@@ -262,11 +263,6 @@
             }];
         }];
     }
-}
-
-- (void)testMemoryUsage {
-
-
 }
 
 @end

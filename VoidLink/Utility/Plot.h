@@ -10,7 +10,6 @@ typedef enum {
     PLOT_DROPPED,
     PLOT_LATE,
 
-    PLOT_DISPLAYLINK,
     PLOT_DECODE,
     PLOT_FRAME_BYTES,
     PlotCount
@@ -47,7 +46,6 @@ typedef struct {
     int framesWithHostProcessingLatency;
     int maxHostProcessingLatency;
     int minHostProcessingLatency;
-    CFTimeInterval displayRefreshRate;
     float lateRatio;
     PlotMetrics decodeMetrics;
     PlotMetrics frameQueueMetrics;

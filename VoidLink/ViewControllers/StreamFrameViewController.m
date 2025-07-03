@@ -255,12 +255,16 @@
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
 
-    // MetalKit view for video
-    self.metalViewController = [[MetalViewController alloc] initWithFrame:self.view.bounds
-                                                                framerate:[_settings.framerate floatValue]
-                                                                enableHdr:_settings.enableHdr];
-    [self.view addSubview:self.metalViewController.view];
-    [self.view bringSubviewToFront:self.metalViewController.view];
+    if ([_settings.renderingBackend intValue] == RENDER_METAL) {
+        // Metal view for video
+        // TODO: refactor the way things access observeFloat for stats
+        self.metalViewController = [[MetalViewController alloc] initWithFrame:self.view.bounds
+                                                                    framerate:[_settings.framerate floatValue]
+                                                                    enableHdr:_settings.enableHdr
+                                                               metricsHandler:self.imguiView.metricsHandler];
+        [self.view addSubview:self.metalViewController.view];
+        [self.view bringSubviewToFront:self.metalViewController.view];
+    }
 
     // Make a MetalKit view for ImGui
     self.imguiView = [[ImGuiRenderer alloc] initWithFrame:self.view.bounds

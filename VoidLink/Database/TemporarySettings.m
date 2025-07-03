@@ -47,6 +47,7 @@
     self.statsOverlay = [[NSUserDefaults standardUserDefaults] boolForKey:@"statsOverlay"];
     self.enableGraphs = [[NSUserDefaults standardUserDefaults] boolForKey:@"enableGraphs"];
     self.graphOpacity = [NSNumber numberWithInteger:[[NSUserDefaults standardUserDefaults] integerForKey:@"graphOpacity"]];
+    self.renderingBackend = [NSNumber numberWithInteger:[[NSUserDefaults standardUserDefaults] integerForKey:@"renderingBackend"]];
 
     NSInteger _screenSize = [[NSUserDefaults standardUserDefaults] integerForKey:@"streamResolution"];
     switch (_screenSize) {
@@ -89,6 +90,7 @@
     self.statsOverlay = settings.statsOverlay;
     self.enableGraphs = settings.enableGraphs;
     self.graphOpacity = settings.graphOpacity;
+    self.renderingBackend = settings.renderingBackend;
 #endif
     self.uniqueId = settings.uniqueId;
     

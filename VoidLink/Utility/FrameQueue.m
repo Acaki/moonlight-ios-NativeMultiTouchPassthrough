@@ -202,6 +202,7 @@
 - (void)clear {
     os_unfair_lock_lock(&_lock);
     _head = _tail = _count = 0;
+    _frameDropMetrics = [[FloatBuffer alloc] initWithCapacity:512];
     os_unfair_lock_unlock(&_lock);
 }
 

@@ -70,6 +70,7 @@
                     statsOverlay:(BOOL)statsOverlay
                     enableGraphs:(BOOL)enableGraphs
                     graphOpacity:(NSInteger)graphOpacity
+                renderingBackend:(NSInteger)renderingBackend
 {
     [_managedObjectContext performBlockAndWait:^{
         Settings* settingsToSave = [self retrieveSettings];
@@ -91,6 +92,7 @@
         settingsToSave.statsOverlay = statsOverlay;
         settingsToSave.enableGraphs = enableGraphs;
         settingsToSave.graphOpacity = [NSNumber numberWithInteger:graphOpacity];
+        settingsToSave.renderingBackend = [NSNumber numberWithInteger:renderingBackend];
         [self saveData];
     }];
 }

@@ -53,6 +53,8 @@
 		A12476D72E1495AA008D54F5 /* MetalView.m in Sources */ = {isa = PBXBuildFile; fileRef = A12476D52E1495AA008D54F5 /* MetalView.m */; };
 		A12476DE2E14D0B5008D54F5 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = A12476DD2E14D0B2008D54F5 /* Shaders.metal */; };
 		A12476DF2E14D0B5008D54F5 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = A12476DD2E14D0B2008D54F5 /* Shaders.metal */; };
+		A12476E32E161986008D54F5 /* ImGuiPlots.mm in Sources */ = {isa = PBXBuildFile; fileRef = A12476E22E161982008D54F5 /* ImGuiPlots.mm */; };
+		A12476E42E161986008D54F5 /* ImGuiPlots.mm in Sources */ = {isa = PBXBuildFile; fileRef = A12476E22E161982008D54F5 /* ImGuiPlots.mm */; };
 		A19562AC2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
 		A19562AD2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
 		A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
@@ -265,6 +267,8 @@
 		A12476D52E1495AA008D54F5 /* MetalView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MetalView.m; sourceTree = "<group>"; };
 		A12476D82E1495FE008D54F5 /* MetalConfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MetalConfig.h; sourceTree = "<group>"; };
 		A12476DD2E14D0B2008D54F5 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		A12476E12E1618E2008D54F5 /* ImGuiPlots.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ImGuiPlots.h; sourceTree = "<group>"; };
+		A12476E22E161982008D54F5 /* ImGuiPlots.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ImGuiPlots.mm; sourceTree = "<group>"; };
 		A13F90582DFC3C5C0010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A13F905C2DFC3C710010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A13F90E22DFD2DE10010BB0F /* MoonlightTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MoonlightTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -486,6 +490,15 @@
 			path = Metal;
 			sourceTree = "<group>";
 		};
+		A12476E02E1618DE008D54F5 /* Stats */ = {
+			isa = PBXGroup;
+			children = (
+				A12476E22E161982008D54F5 /* ImGuiPlots.mm */,
+				A12476E12E1618E2008D54F5 /* ImGuiPlots.h */,
+			);
+			path = Stats;
+			sourceTree = "<group>";
+		};
 		A1A777E82DDBECE600E071D8 /* ImGui */ = {
 			isa = PBXGroup;
 			children = (
@@ -575,6 +588,7 @@
 		FB290CF919B2C406004C83CF /* Moonlight */ = {
 			isa = PBXGroup;
 			children = (
+				A12476E02E1618DE008D54F5 /* Stats */,
 				A12025BE2DD7E36B005015C8 /* ImGuiRenderer.mm */,
 				A12025BD2DD7E352005015C8 /* ImGuiRenderer.h */,
 				D4746EEA1CBC740C006FB401 /* Moonlight-Bridging-Header.h */,
@@ -1062,6 +1076,7 @@
 				FB1A67C7213245EA00507771 /* PairManager.m in Sources */,
 				FB1A67C9213245EA00507771 /* WakeOnLanManager.m in Sources */,
 				FB1A67CB213245EA00507771 /* ConnectionHelper.m in Sources */,
+				A12476E32E161986008D54F5 /* ImGuiPlots.mm in Sources */,
 				FB1A67BD213245E000507771 /* DiscoveryManager.m in Sources */,
 				A12476D62E1495AA008D54F5 /* MetalView.m in Sources */,
 				FB1A67BF213245E000507771 /* DiscoveryWorker.m in Sources */,
@@ -1122,6 +1137,7 @@
 				A1A777DF2DDBEC5500E071D8 /* imgui.cpp in Sources */,
 				A1A777E02DDBEC5500E071D8 /* imgui_draw.cpp in Sources */,
 				A1A777E12DDBEC5500E071D8 /* imgui_tables.cpp in Sources */,
+				A12476E42E161986008D54F5 /* ImGuiPlots.mm in Sources */,
 				FB89462D19F646E200339C8A /* MDNSManager.m in Sources */,
 				FB89462B19F646E200339C8A /* StreamView.m in Sources */,
 				A1D406AF2E0A77AC00DC0A77 /* FrameQueue.m in Sources */,
@@ -1412,6 +1428,8 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
+					"CA_DEBUG_TRANSACTIONS=1",
+					"CA_ASSERT_MAIN_THREAD_TRANSACTIONS=1",
 					"$(inherited)",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
@@ -1422,6 +1440,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
@@ -1506,6 +1525,10 @@
 				ENABLE_TESTABILITY = NO;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Limelight/Limelight-Prefix.pch";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
@@ -1534,6 +1557,7 @@
 					"$(PROJECT_DIR)/libs/FFmpeg/lib/iOS-Sim",
 				);
 				MARKETING_VERSION = 9.0.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				PRODUCT_BUNDLE_IDENTIFIER = org.hybridized.Moonlight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
@@ -1586,6 +1610,7 @@
 					"$(PROJECT_DIR)/libs/FFmpeg/lib/iOS-Sim",
 				);
 				MARKETING_VERSION = 9.0.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = org.hybridized.Moonlight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";

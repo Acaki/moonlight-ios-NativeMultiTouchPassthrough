@@ -188,7 +188,7 @@
     double peakVideoMbps = [_connection getBwTracker].peakMbps;
 
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\n"
-            "Bitrate: %.1f Mbps, Peak: %.1f, Display: %.2f Hz\n"
+            "Bitrate: %.1f Mbps, Peak: %.1f\n"
             "%@"
             "Frames buffered: %.1f, missed DisplayLink (this stream): %.1f%%\n"
             "Frames dropped by network/pacing jitter: %.1f%% / %.1f%%\n"
@@ -198,7 +198,7 @@
             _config.height,
             fps,
             [_connection getActiveCodecName],
-            avgVideoMbps, peakVideoMbps, stats.displayRefreshRate,
+            avgVideoMbps, peakVideoMbps,
             hostProcessingString,
             stats.frameQueueMetrics.avg, stats.lateRatio,
             (stats.networkDroppedFrames / stats.totalFrames) * 100.0,

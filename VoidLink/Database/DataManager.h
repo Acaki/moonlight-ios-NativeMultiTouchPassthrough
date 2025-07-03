@@ -30,7 +30,8 @@
                absoluteTouchMode:(BOOL)absoluteTouchMode
                     statsOverlay:(BOOL)statsOverlay
                     enableGraphs:(BOOL)enableGraphs
-                    graphOpacity:(NSInteger)graphOpacity;
+                    graphOpacity:(NSInteger)graphOpacity
+                renderingBackend:(NSInteger)renderingBackend;
 
 - (NSArray*) getHosts;
 - (void) updateHost:(TemporaryHost*)host;

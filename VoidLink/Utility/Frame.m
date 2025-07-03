@@ -60,12 +60,14 @@
     }
     if (_pixelBuffer) {
         CVPixelBufferRelease(_pixelBuffer);
+        _pixelBuffer = nil;
     }
 
     // sampleBuffer comes from CMSampleBufferCreateReadyWithImageBuffer
     // so we don't need to CFRetain in init, but do need to release it
     if (_sampleBuffer) {
         CFRelease(_sampleBuffer);
+        _sampleBuffer = nil;
     }
 }
 

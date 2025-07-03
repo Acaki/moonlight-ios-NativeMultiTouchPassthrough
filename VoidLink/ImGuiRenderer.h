@@ -6,16 +6,7 @@
 #import "FloatBuffer.h"
 #import "Plot.h"
 
-struct PlotDef {
-    FloatBuffer * _Nonnull buffer;
-    const char * _Nonnull title;
-    PlotSide side;
-    PlotLabelType labelType;
-    const char * _Nonnull unit;
-    double scaleMin, scaleMax, scaleTarget;
-    float minY;
-    float maxY;
-};
+typedef void (^MetricsHandler)(int plotId, CFTimeInterval value);
 
 @interface ImGuiRenderer : UIViewController
 @end
@@ -30,6 +21,7 @@ struct PlotDef {
 @property (nonatomic) BOOL enableGraphs;
 @property (nonatomic) float graphOpacity;
 @property (nonatomic) BOOL imguiRunning;
+@property (nonatomic) MetricsHandler _Nonnull metricsHandler;
 
 -(nonnull instancetype) initWithFrame:(CGRect)bounds
                             streamFps:(int)streamFps
