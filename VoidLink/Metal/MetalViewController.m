@@ -79,7 +79,9 @@ The implementation of the cross-platform game view controller.
         }
 
         // Initialize the renderer-dependent view properties.
+#if !TARGET_OS_TV
         view.metalLayer.wantsExtendedDynamicRangeContent = YES;
+#endif
         view.metalLayer.pixelFormat = renderer.colorPixelFormat;
         view.metalLayer.colorspace = renderer.colorspace;
 
