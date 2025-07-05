@@ -310,7 +310,6 @@
                             <segmentedControl opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="9hB-dK-EkV" userLabel="Rendering Backend Selector">
                                 <rect key="frame" x="16" y="955" width="459" height="32"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <string key="toolTip">Swipe up/down with two fingers to show or hide the stats overlay. If you enable graphs, frametime and frame queue metrics are shown. Best viewed on devices with larger screens.</string>
                                 <segments>
                                     <segment title="Metal"/>
                                     <segment title="AVSampleBuffer"/>
@@ -328,8 +327,6 @@
                             <segmentedControl opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="HUy-EC-8go" userLabel="Statistics Overlay Selector">
                                 <rect key="frame" x="16" y="1019" width="459" height="32"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <string key="toolTip">Swipe up/down with two fingers to show or hide the stats overlay. If you enable graphs, frametime and frame queue metrics are shown. Best viewed on devices with larger screens.</string>
-                                <string key="toolTip">Swipe up/down with two fingers to show or hide the stats overlay. If you enable graphs, frametime and frame queue metrics are shown. Best viewed on devices with larger screens.</string>
                                 <segments>
                                     <segment title="No"/>
                                     <segment title="Yes"/>
@@ -347,8 +344,6 @@
                             <segmentedControl opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="kic-po-AP9" userLabel="Performance Graphs Selector">
                                 <rect key="frame" x="16" y="1083" width="349" height="32"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <string key="toolTip">Swipe up/down with two fingers to show or hide the stats overlay. If you enable graphs, frametime and frame queue metrics are shown. Best viewed on devices with larger screens.</string>
-                                <string key="toolTip">Swipe up/down with two fingers to show or hide the stats overlay. If you enable graphs, frametime and frame queue metrics are shown. Best viewed on devices with larger screens.</string>
                                 <segments>
                                     <segment title="No"/>
                                     <segment title="Yes"/>
