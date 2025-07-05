@@ -194,7 +194,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     currentVideoStats.totalFrames++;
 
     [bwTracker addBytes:decodeUnit->fullLength];
-    [_callbacks observeFloat:PLOT_FRAME_BYTES value:(decodeUnit->fullLength / 1024.0)];
 
     PLENTRY entry = decodeUnit->bufferList;
     while (entry != NULL) {

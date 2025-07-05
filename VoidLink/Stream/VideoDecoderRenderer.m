@@ -816,13 +816,14 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     0,
     NULL,
     ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
-      if (status != noErr || !imageBuffer) {
-        NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];
-        Log(LOG_E, @"Decompression session error: %@", error);
-        LiRequestIdrFrame();
-        return;
-      }
+        if (status != noErr || !imageBuffer) {
+            NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];
+            Log(LOG_E, @"Decompression session error: %@", error);
+            LiRequestIdrFrame();
+            return;
+        }
 
+        CMSampleBufferRef sampleBufferOut = nil;
         CVPixelBufferRef pixelBuffer = nil;
 
         // AVSampleBuffer path: package into a SampleBuffer
@@ -843,11 +844,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                 }
             }
 
-            CMSampleBufferRef sampleBuffer;
             CMSampleTimingInfo sampleTiming = {kCMTimeInvalid, presentationTimestamp, presentationDuration};
 
             OSStatus err = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, imageBuffer,
-                                                                    self->formatDescImageBuffer, &sampleTiming, &sampleBuffer);
+                                                                    self->formatDescImageBuffer, &sampleTiming, &sampleBufferOut);
             if (err != noErr) {
                 Log(LOG_E, @"Error creating sample buffer for decompressed image buffer %d", (int)err);
                 return;
@@ -862,7 +862,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
       dispatch_async(self->_vtq, ^{
           Frame *frame = nil;
           if (self->_renderingBackend == RENDER_AVSB) {
-              frame = [[Frame alloc] initWithSampleBuffer:sampleBuffer
+              frame = [[Frame alloc] initWithSampleBuffer:sampleBufferOut
                                               frameNumber:frameNumber
                                                 frameType:frameType];
           } else {
