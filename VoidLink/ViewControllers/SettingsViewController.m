@@ -261,7 +261,8 @@ BOOL isCustomResolution(CGSize res) {
     [self.touchModeSelector setSelectedSegmentIndex:currentSettings.absoluteTouchMode ? 1 : 0];
     [self.touchModeSelector addTarget:self action:@selector(touchModeChanged) forControlEvents:UIControlEventValueChanged];
     [self.statsOverlaySelector setSelectedSegmentIndex:currentSettings.statsOverlay ? 1 : 0];
-    [self.renderingBackendSelector setSelectedSegmentIndex:currentSettings.renderingBackend ? 1 : 0];
+    NSInteger renderingBackend = [currentSettings.renderingBackend integerValue];
+    [self.renderingBackendSelector setSelectedSegmentIndex:renderingBackend];
     [self.enableGraphsSelector setSelectedSegmentIndex:currentSettings.enableGraphs ? 1 : 0];
     [self.enableGraphsSelector addTarget:self action:@selector(enableGraphsChanged) forControlEvents:UIControlEventValueChanged];
     [self enableGraphsChanged];
