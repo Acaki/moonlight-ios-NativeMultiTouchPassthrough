@@ -4,7 +4,7 @@
 @interface Frame : NSObject
 @property (nonatomic) int frameNumber;
 @property (nonatomic) int frameType;
-@property (nonatomic) BOOL fullRange;
+@property (nonatomic) CFTimeInterval decodedAt;
 @property (nonatomic) CMTime pts90;
 @property (nonatomic) CMTime duration90;
 @property (nonatomic, assign) CMVideoFormatDescriptionRef formatDesc;

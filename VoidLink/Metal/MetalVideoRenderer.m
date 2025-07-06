@@ -102,9 +102,10 @@ struct Vertex {
 {
     self = [super init];
     if (self) {
+        _averageGPUTime = 1.0f / framerate;
         _device = device;
-        _colorPixelFormat = drawablePixelFormat;
-        _colorspace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ); // XXX
+        _colorPixelFormat = MTLPixelFormatBGR10A2Unorm;
+        _colorspace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
         _framerate = framerate;
         _commandQueue = [_device newCommandQueue];
         _lastColorSpace = -1;
@@ -116,10 +117,59 @@ struct Vertex {
     return self;
 }
 
+#if !TARGET_OS_TV
+- (void) applyEDRFromFrame:(Frame *)frame
+                   toLayer:(CAMetalLayer *)layer
+{
+    CFDictionaryRef ext = [frame getFormatDescExtensions];
+
+    FQLog(LOG_I, @"ext: %@", ext);
+
+    CFDataRef masteringData = CFDictionaryGetValue(ext, kCMFormatDescriptionExtension_MasteringDisplayColorVolume);
+    CFDataRef contentDataRef = CFDictionaryGetValue(ext, kCMFormatDescriptionExtension_ContentLightLevelInfo);
+
+    if (masteringData) {
+        FQLog(LOG_I, @"ext MDCV %@", masteringData);
+    }
+    if (contentDataRef) {
+        FQLog(LOG_I, @"ext CLLI %@", contentDataRef);
+    }
+
+    if (   masteringData && CFDataGetLength(masteringData) == 24
+        && contentDataRef && CFDataGetLength(contentDataRef) == 4
+       ) {
+        NSData *displayData = (__bridge NSData *)masteringData;
+        NSData *contentData = (__bridge NSData *)contentDataRef;
+
+        layer.wantsExtendedDynamicRangeContent = YES;
+        layer.pixelFormat = MTLPixelFormatRGBA16Float;
+        CFStringRef name = kCGColorSpaceExtendedLinearITUR_2020;
+        CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(name);
+        layer.colorspace = colorspace;
+
+        layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithDisplayInfo:displayData
+                                                            contentInfo:contentData
+                                                     opticalOutputScale:100.0f];
+
+        FQLog(LOG_I, @"EDRMetadata set from MDCV %@ and CLLI %@", displayData, contentData);
+    } else {
+        layer.wantsExtendedDynamicRangeContent = YES;
+        layer.pixelFormat = MTLPixelFormatRGBA16Float;
+        CFStringRef name = kCGColorSpaceExtendedLinearITUR_2020;
+        CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(name);
+        layer.colorspace = colorspace;
+
+        layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithMinLuminance:0.0005f
+                                                            maxLuminance:1000.0f
+                                                      opticalOutputScale:100.0f];
+    }
+}
+#endif
+
 - (int)getFrameColorspaceAndRange:(Frame *)frame isFullRange:(BOOL *)isFullRange {
     CFDictionaryRef ext = [frame getFormatDescExtensions];
 
-    Log(LOG_I, @"Available frame extensions: %@", ext);
+    //FQLog(LOG_I, @"%@", ext);
 
     // Full Range boolean
     CFBooleanRef fullRangeRef = CFDictionaryGetValue(ext, kCMFormatDescriptionExtension_FullRangeVideo);
@@ -138,20 +188,17 @@ struct Vertex {
     return COLORSPACE_REC_601;
 }
 
-
 - (BOOL) updateColorSpaceForFrame:(Frame *)frame
                           toLayer:(CAMetalLayer *)layer
+                   layerDidChange:(BOOL *)layerDidChange
 {
     BOOL fullRange = NO;
     int colorspace = [self getFrameColorspaceAndRange:frame isFullRange:&fullRange];
     if (colorspace != _lastColorSpace || fullRange != _lastFullRange) {
         CGColorSpaceRef newColorSpace = nil;
         MTLPixelFormat newPixelFormat = layer.pixelFormat;
+        BOOL isHDR = NO;
         struct ParamBuffer paramBuffer;
-
-        // XXX do we need to do this?
-        // Free any unpresented drawable since we're changing pixel formats
-        // discardNextDrawable();
 
         switch (colorspace) {
         case COLORSPACE_REC_709:
@@ -163,12 +210,13 @@ struct Vertex {
             CFDictionaryRef ext = [frame getFormatDescExtensions];
             CFStringRef frame_trc = CFDictionaryGetValue(ext, kCVImageBufferTransferFunctionKey);
             if (CFEqual(frame_trc, kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ)) {
+                isHDR = YES;
                 newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
                 newPixelFormat = MTLPixelFormatBGR10A2Unorm;
             } else {
                 // SDR 2020
                 newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2020);
-                newPixelFormat = MTLPixelFormatBGRA8Unorm;
+                newPixelFormat = MTLPixelFormatBGR10A2Unorm;
             }
             paramBuffer.cscParams = (fullRange ? k_CscParams_Bt2020Full : k_CscParams_Bt2020Lim);
             break;
@@ -179,16 +227,42 @@ struct Vertex {
             paramBuffer.cscParams = (fullRange ? k_CscParams_Bt601Full : k_CscParams_Bt601Lim);
         }
 
-        newPixelFormat = MTLPixelFormatRGBA16Float;
-
         // The CAMetalLayer retains the CGColorSpace
         if (newColorSpace || newPixelFormat != layer.pixelFormat) {
+            *layerDidChange = YES;
+            if (newColorSpace) {
+                Log(LOG_I, @"Frame colorspace %@ - changing MetalLayer's colorspace to %@",
+                    colorspace == COLORSPACE_REC_709    ? @"REC_709"
+                    : colorspace == COLORSPACE_REC_2020 ? @"REC_2020"
+                    : colorspace == COLORSPACE_REC_601  ? @"REC_601 (sRGB)"
+                    : [NSString stringWithFormat:@"Unknown: %d", colorspace],
+                    newColorSpace
+                );
+            }
+            if (newPixelFormat != layer.pixelFormat) {
+                Log(LOG_I, @"Frame pixel format %@ - changing MetalLayer's colorspace to %@",
+                      layer.pixelFormat == MTLPixelFormatBGRA8Unorm ? @"MTLPixelFormatBGRA8Unorm"
+                    : layer.pixelFormat == MTLPixelFormatBGR10A2Unorm ? @"MTLPixelFormatBGR10A2Unorm"
+                    : [NSString stringWithFormat:@"Unknown: %lu", layer.pixelFormat],
+                      newPixelFormat == MTLPixelFormatBGRA8Unorm ? @"MTLPixelFormatBGRA8Unorm"
+                    : newPixelFormat == MTLPixelFormatBGR10A2Unorm ? @"MTLPixelFormatBGR10A2Unorm"
+                    : [NSString stringWithFormat:@"Unknown: %lu", (unsigned long)layer.pixelFormat]
+                );
+            }
+#if !RENDER_ON_MAIN_THREAD
             // These can only be changed on the main thread
-            Log(LOG_I, @"Changing MetalLayer's colorspace & pixelFormat");
             dispatch_sync(dispatch_get_main_queue(), ^{
+#endif
+#if !TARGET_OS_TV
+                if (isHDR) {
+                    layer.wantsExtendedDynamicRangeContent = YES;
+                }
+#endif
                 layer.colorspace = newColorSpace;
                 layer.pixelFormat = newPixelFormat;
+#if !RENDER_ON_MAIN_THREAD
             });
+#endif
             CGColorSpaceRelease(newColorSpace);
         }
 
@@ -199,9 +273,6 @@ struct Vertex {
             Log(LOG_E, @"Failed to create CSC parameters buffer");
             return NO;
         }
-
-        Log(LOG_I, @"newPixelFormat: %d, layer.pixelFormat %d",
-            newPixelFormat, layer.pixelFormat);
 
         size_t planes = CVPixelBufferGetPlaneCount(frame.pixelBuffer);
         assert(planes == 2 || planes == 3);
@@ -300,22 +371,30 @@ struct Vertex {
                  at:(CFTimeInterval)deltaTime
 {
     // Handle changes to the frame's colorspace from last time we rendered
-    if (![self updateColorSpaceForFrame:frame toLayer:layer]) {
-        // XXX Trigger the main thread to recreate the decoder
-        //        SDL_Event event;
-        //        event.type = SDL_RENDER_DEVICE_RESET;
-        //        SDL_PushEvent(&event);
+    BOOL layerDidChange = NO;
+    if (![self updateColorSpaceForFrame:frame toLayer:layer layerDidChange:&layerDidChange]) {
+        return;
+    }
+
+    if (layerDidChange) {
+        Log(LOG_I, @"Metal frame changed layer's colorspace and/or pixel format, returning for new drawable");
         return;
     }
 
     // Handle changes to the video size or drawable size
     if (![self updateVideoRegionSizeForFrame:frame toLayer:layer]) {
-        // Trigger the main thread to recreate the decoder
-        //        SDL_Event event;
-        //        event.type = SDL_RENDER_DEVICE_RESET;
-        //        SDL_PushEvent(&event);
         return;
     }
+
+    CFTimeInterval now = CACurrentMediaTime();
+    FQLog(LOG_I, @"[%d] Metal frame due in %.3f ms, for present in %.3f ms",
+          frame.frameNumber, (update.targetTimestamp - now) * 1000.0,
+          (update.targetPresentationTimestamp - update.targetTimestamp) * 1000.0);
+
+//#if !TARGET_OS_TV
+//    // Experimental EDR handling based on frame metadata
+//    [self applyEDRFromFrame:frame toLayer:layer];
+//#endif
 
     CVMetalTextureRef *cvMetalTextures = malloc(sizeof(CVMetalTextureRef) * MAX_VIDEO_PLANES);
     size_t planes = CVPixelBufferGetPlaneCount(frame.pixelBuffer);
@@ -376,6 +455,10 @@ struct Vertex {
         [renderEncoder setFragmentTexture:CVMetalTextureGetTexture(cvMetalTextures[i]) atIndex:i];
     }
     [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
+        const CFTimeInterval GPUTime = cb.GPUEndTime - cb.GPUStartTime;
+        const double alpha = 0.25f;
+        self->_averageGPUTime = (GPUTime * alpha) + (self->_averageGPUTime * (1.0 - alpha));
+
         // Free textures after completion of rendering per CVMetalTextureCache requirements
         // XXX any way to reuse these buffers?
         for (size_t i = 0; i < planes; i++) {
@@ -389,7 +472,7 @@ struct Vertex {
     [renderEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
     [renderEncoder endEncoding];
 
-    [drawable addPresentedHandler:^(id<MTLDrawable> cb) {
+    [drawable addPresentedHandler:^(id<MTLDrawable> d) {
         CFTimeInterval now = CACurrentMediaTime();
         CFTimeInterval frametime = now - self->_lastFrametime;
         self->_lastFrametime = now;
@@ -401,6 +484,17 @@ struct Vertex {
 
     // Wait for the command buffer to complete and free our CVMetalTextureCache references
     [commandBuffer waitUntilCompleted];
+}
+
+/// Responds to the drawable's size or orientation changes.
+- (void)drawableResize:(CGSize)drawableSize
+{
+    [self resize:drawableSize];
+}
+
+- (void)resize:(CGSize)size
+{
+    // TODO?
 }
 
 @end

@@ -214,8 +214,8 @@
     CFTimeInterval now = CACurrentMediaTime();
     if (now - lastTime > 1.0) {
         estimate = (_framesIn - lastFrames) / (now - lastTime);
-		FQLog(LOG_I, @"fps calc using framesIn %d - lastFrames %d / now %f - lastTime %f = %.1f fps",
-		              _framesIn, lastFrames, now, lastTime, estimate);
+//		FQLog(LOG_I, @"fps calc using framesIn %d - lastFrames %d / now %f - lastTime %f = %.1f fps",
+//		              _framesIn, lastFrames, now, lastTime, estimate);
         lastTime   = now;
         lastFrames = _framesIn;
     }

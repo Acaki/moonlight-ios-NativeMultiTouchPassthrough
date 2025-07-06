@@ -1411,12 +1411,6 @@ static NSMutableSet* hostList;
     return YES;
 }
 
-#if !TARGET_OS_TV
-- (BOOL)shouldAutorotate {
-    return YES;
-}
-#endif
-
 - (void) disableNavigation {
     self.navigationController.navigationBar.topItem.rightBarButtonItem.enabled = NO;
     self.navigationController.navigationBar.topItem.leftBarButtonItem.enabled = NO;

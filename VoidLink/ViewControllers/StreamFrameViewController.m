@@ -118,7 +118,7 @@
 #if TARGET_OS_TV
     [_spinner setActivityIndicatorViewStyle:UIActivityIndicatorViewStyleWhiteLarge];
 #else
-    [_spinner setActivityIndicatorViewStyle:UIActivityIndicatorViewStyleWhite];
+    [_spinner setActivityIndicatorViewStyle:UIActivityIndicatorViewStyleMedium];
 #endif
     [_spinner sizeToFit];
     [_spinner startAnimating];
@@ -259,8 +259,8 @@
         // Metal view for video
         // TODO: refactor the way things access observeFloat for stats
         self.metalViewController = [[MetalViewController alloc] initWithFrame:self.view.bounds
-                                                                    framerate:[_settings.framerate floatValue]
-                                                                    enableHdr:_settings.enableHdr
+                                                                    framerate:[self->_settings.framerate floatValue]
+                                                                    enableHdr:self->_settings.enableHdr
                                                                metricsHandler:self.imguiView.metricsHandler];
         [self.view addSubview:self.metalViewController.view];
         [self.view bringSubviewToFront:self.metalViewController.view];
@@ -845,10 +845,6 @@
     }
     
     return NO;
-}
-
-- (BOOL)shouldAutorotate {
-    return YES;
 }
 
 - (BOOL)prefersPointerLocked {

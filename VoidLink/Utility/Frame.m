@@ -13,6 +13,7 @@
                                  pts:(CMTime)pts {
     self = [super init];
     if (self) {
+        _decodedAt    = CACurrentMediaTime();
         _formatDescExt = nil;
         _frameNumber  = frameNumber;
         _frameType    = frameType;

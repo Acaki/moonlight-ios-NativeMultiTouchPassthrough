@@ -105,6 +105,7 @@
                       selector:@selector(runThread)
                       object:nil];
     _continueRunLoop = YES;
+    _renderThread.qualityOfService = NSQualityOfServiceUserInteractive;
     [_renderThread start];
 #endif // END !RENDER_ON_MAIN_THREAD
 
@@ -161,7 +162,7 @@
     if (_framerate > 0.0f) {
         _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(_framerate, _framerate, _framerate);
     }
-    _displayLink.preferredFrameLatency = 2;
+    _displayLink.preferredFrameLatency = 2.0f;
     _displayLink.paused = NO;
     // Assign the delegate to receive the display update callback.
     _displayLink.delegate = self;
@@ -174,11 +175,6 @@
 {
     CFTimeInterval deltaTime = _previousTargetPresentationTimestamp - update.targetPresentationTimestamp;
     _previousTargetPresentationTimestamp = update.targetPresentationTimestamp;
-
-    CFTimeInterval now = CACurrentMediaTime();
-    FQLog(LOG_I, @"metalDisplayLink: %@ now %f, deadline %f, target pts %f (+%.3f ms after deadline)",
-        update.debugDescription, now, update.targetTimestamp, update.targetPresentationTimestamp,
-        (update.targetPresentationTimestamp - update.targetTimestamp) * 1000.0);
 
     [self renderUpdate:update with:deltaTime];
 }
@@ -328,7 +324,7 @@
 
     _metalLayer.drawableSize = newSize;
 
-    //[_delegate drawableResize:newSize];
+    [_delegate drawableResize:newSize];
 #else
     // The system calls all AppKit and UIKit calls that notify of a resize on the main thread. Use
     // a synchronized block to ensure that resize notifications on the delegate are atomic.
@@ -342,7 +338,7 @@
 
         _metalLayer.drawableSize = newSize;
 
-        //[_delegate drawableResize:newSize];
+        [_delegate drawableResize:newSize];
     }
 #endif
 }

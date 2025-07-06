@@ -855,7 +855,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         } else if (self->_renderingBackend == RENDER_METAL) {
             // Metal path: retain the pixelBuffer here so it survives the dispatch
             pixelBuffer = CVPixelBufferRetain((CVPixelBufferRef)imageBuffer);
-            //Log(LOG_D, @"Decoded to PixelBuffer %@", pixelBuffer);
+            Log(LOG_D, @"Decoded to PixelBuffer %@", pixelBuffer); // dumps full frame details
         }
 
       // Dispatch onto our higher priority queue

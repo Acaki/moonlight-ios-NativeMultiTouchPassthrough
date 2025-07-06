@@ -9,5 +9,5 @@
 // When enabled, the drawable's size updates automatically whenever
 // the view resizes. When disabled, you can update the drawable's
 // size explicitly outside the view class.
-#define AUTOMATICALLY_RESIZE  1
+#define AUTOMATICALLY_RESIZE 1
 

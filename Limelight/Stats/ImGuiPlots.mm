@@ -86,16 +86,6 @@
             .unit      = "ms",
             .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
         };
-
-        // disabled/unused
-
-        _plots[PLOT_FRAME_BYTES] = {
-            .title     = "Bytes per frame",
-            .labelType = PLOT_LABEL_MIN_MAX_AVG,
-            .unit      = "KB",
-            .scaleMin  = 0.0f,
-            .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
-        };
     }
 
     return self;

@@ -14,6 +14,8 @@
 // The protocol to provide resize and redraw callbacks to a delegate.
 @protocol MetalViewDelegate <NSObject>
 
+- (void)drawableResize:(CGSize)size;
+
 - (void)renderTo:(nonnull CAMetalLayer *)metalLayer
             with:(CAMetalDisplayLinkUpdate *_Nonnull)update
               at:(CFTimeInterval)deltaTime;
