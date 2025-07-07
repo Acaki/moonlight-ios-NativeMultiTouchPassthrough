@@ -2,6 +2,8 @@
 #import <XCTest/XCTest.h>
 #import <CoreMedia/CoreMedia.h>
 
+#define FRAME_QUEUE_VERBOSE
+
 #import "FrameQueue.h"
 #import "Logger.h"
 #include "Limelight.h"
@@ -240,7 +242,8 @@
             // Producer
             dispatch_async(producerQ, ^{
                 for (int i = 0; i < TotalFrames; i++) {
-                    [self.queue enqueue:[self makeFrame]];
+                    //[self.queue enqueue:[self makeFrame]];
+                    [self.queue enqueue:[self makeFrame] withSlackSize:3];
                     [NSThread sleepForTimeInterval:0.001];
                 }
             });
@@ -248,7 +251,7 @@
             // Consumer
             dispatch_async(consumerQ, ^{
                 for (int expected = 0; expected < TotalFrames; expected++) {
-                    [self.queue dequeueWithTimeout:1.0];
+                    [self.queue dequeueWithTimeout:1.0f];
                     [dequeueAll fulfill];
                 }
             });

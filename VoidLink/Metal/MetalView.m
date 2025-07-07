@@ -160,6 +160,7 @@
     // Create and configure the Metal display link.
     _displayLink = [[CAMetalDisplayLink alloc] initWithMetalLayer:metalLayer];
     if (_framerate > 0.0f) {
+        Log(LOG_I, @"CAMetalDisplayLink preferredFrameRate set to %.2f", _framerate);
         _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(_framerate, _framerate, _framerate);
     }
     _displayLink.preferredFrameLatency = 2.0f;

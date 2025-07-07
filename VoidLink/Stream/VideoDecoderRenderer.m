@@ -38,16 +38,16 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     id<ConnectionCallbacks> _callbacks;
     float _streamAspectRatio;
 
-    AVSampleBufferDisplayLayer* displayLayer;
-    int videoFormat;
-    int frameRate;
+    AVSampleBufferDisplayLayer* _displayLayer;
+    int _videoFormat;
+    int _frameRate;
 
-    NSMutableArray *parameterSetBuffers;
-    NSData *masteringDisplayColorVolume;
-    NSData *contentLightLevelInfo;
-    CMVideoFormatDescriptionRef formatDesc;
-    CMVideoFormatDescriptionRef formatDescImageBuffer;
-    VTDecompressionSessionRef decompressionSession;
+    NSMutableArray *_parameterSetBuffers;
+    NSData *_masteringDisplayColorVolume;
+    NSData *_contentLightLevelInfo;
+    CMVideoFormatDescriptionRef _formatDesc;
+    CMVideoFormatDescriptionRef _formatDescImageBuffer;
+    VTDecompressionSessionRef _decompressionSession;
 
     CADisplayLink *_displayLink;
     FrameQueue *_frameQueue;
@@ -58,10 +58,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
 - (void)reinitializeDisplayLayer
 {
-    CALayer *oldLayer = displayLayer;
+    CALayer *oldLayer = _displayLayer;
 
-    displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
-    displayLayer.backgroundColor = [UIColor blackColor].CGColor;
+    _displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
+    _displayLayer.backgroundColor = [UIColor blackColor].CGColor;
 
     // Ensure the AVSampleBufferDisplayLayer is sized to preserve the aspect ratio
     // of the video stream. We used to use AVLayerVideoGravityResizeAspect, but that
@@ -74,36 +74,36 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     } else {
         videoSize = CGSizeMake(_view.bounds.size.width, _view.bounds.size.width / _streamAspectRatio);
     }
-    displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
-    displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
-    displayLayer.videoGravity = AVLayerVideoGravityResize;
+    _displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
+    _displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
+    _displayLayer.videoGravity = AVLayerVideoGravityResize;
 
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
-    displayLayer.hidden = YES;
+    _displayLayer.hidden = YES;
 
     if (oldLayer != nil) {
         // Switch out the old display layer with the new one
-        [_view.layer replaceSublayer:oldLayer with:displayLayer];
+        [_view.layer replaceSublayer:oldLayer with:_displayLayer];
     }
     else {
-        [_view.layer addSublayer:displayLayer];
+        [_view.layer addSublayer:_displayLayer];
     }
 
-    if (formatDesc != nil) {
-        CFRelease(formatDesc);
-        formatDesc = nil;
+    if (_formatDesc != nil) {
+        CFRelease(_formatDesc);
+        _formatDesc = nil;
     }
 
-    if (formatDescImageBuffer != nil) {
-        CFRelease(formatDescImageBuffer);
-        formatDescImageBuffer = nil;
+    if (_formatDescImageBuffer != nil) {
+        CFRelease(_formatDescImageBuffer);
+        _formatDescImageBuffer = nil;
     }
 
-    if (decompressionSession != nil){
-        VTDecompressionSessionInvalidate(decompressionSession);
-        CFRelease(decompressionSession);
-        decompressionSession = nil;
+    if (_decompressionSession != nil){
+        VTDecompressionSessionInvalidate(_decompressionSession);
+        CFRelease(_decompressionSession);
+        _decompressionSession = nil;
     }
 }
 
@@ -122,13 +122,13 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
 
-    parameterSetBuffers = [[NSMutableArray alloc] init];
+    _parameterSetBuffers = [[NSMutableArray alloc] init];
     _frameQueue = [FrameQueue sharedInstance];
     _maxRefreshRate = [[UIScreen mainScreen] maximumFramesPerSecond];
 
     DataManager* dataMan = [[DataManager alloc] init];
 
-    [_frameQueue setHighWaterMark:[[dataMan getSettings].frameQueueSize integerValue]];
+    [_frameQueue setHighWaterMark:(int)[[dataMan getSettings].frameQueueSize integerValue]];
 
     [self reinitializeDisplayLayer];
 
@@ -139,8 +139,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
 - (void)setupWithVideoFormat:(int)videoFormat width:(int)videoWidth height:(int)videoHeight frameRate:(int)frameRate
 {
-    self->videoFormat = videoFormat;
-    self->frameRate = frameRate;
+    self->_videoFormat = videoFormat;
+    self->_frameRate = frameRate;
 
     DataManager* dataMan = [[DataManager alloc] init];
     if ([[dataMan getSettings].renderingBackend integerValue] == RENDER_AVSB) {
@@ -151,10 +151,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(renderModeAVSB:)];
 
         if (@available(iOS 15.0, tvOS 15.0, *)) {
-            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
+            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->_frameRate, self->_frameRate, self->_frameRate);
         }
         else {
-            _displayLink.preferredFramesPerSecond = self->frameRate;
+            _displayLink.preferredFramesPerSecond = self->_frameRate;
         }
         [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     } else {
@@ -163,18 +163,31 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 }
 
-- (void)setupDecompressionSession {
-    if (decompressionSession != NULL) {
-        VTDecompressionSessionInvalidate(decompressionSession);
-        CFRelease(decompressionSession);
-        decompressionSession = nil;
+
+- (void)setupDecompressionSessionWithAttributes:(NSDictionary *)destinationPixelBufferAttributes {
+    if (_decompressionSession != NULL) {
+        VTDecompressionSessionInvalidate(_decompressionSession);
+        CFRelease(_decompressionSession);
+        _decompressionSession = nil;
     }
 
+    int status = VTDecompressionSessionCreate(kCFAllocatorDefault,
+                                              _formatDesc,
+                                              nil,
+                                              (__bridge CFDictionaryRef)destinationPixelBufferAttributes,
+                                              nil,
+                                              &_decompressionSession);
+    if (status != noErr) {
+        Log(LOG_E, @"Failed to create VTDecompressionSession, status %d", status);
+    }
+}
+
+- (void)setupDecompressionSession {
 #if TARGET_OS_SIMULATOR
     NSNumber *pixelFormat = @(kCVPixelFormatType_32BGRA);
 #else
     NSNumber *pixelFormat = nil;
-    if (self->videoFormat & VIDEO_FORMAT_MASK_YUV444) {
+    if (self->_videoFormat & VIDEO_FORMAT_MASK_YUV444) {
         pixelFormat = @(kCVPixelFormatType_444YpCbCr10BiPlanarVideoRange);
     }
     else {
@@ -183,22 +196,15 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 #endif
 
     NSDictionary *destinationPixelBufferAttributes = @{(id)kCVPixelBufferPixelFormatTypeKey : pixelFormat};
-    int status = VTDecompressionSessionCreate(kCFAllocatorDefault,
-                                              formatDesc,
-                                              nil,
-                                              (__bridge CFDictionaryRef)destinationPixelBufferAttributes,
-                                              nil,
-                                              &decompressionSession);
-    if (status != noErr) {
-        Log(LOG_E, @"Failed to create VTDecompressionSession, status %d", status);
-    }
+
+    return [self setupDecompressionSessionWithAttributes:destinationPixelBufferAttributes];
 }
 
 - (void) checkDisplayLayer {
     // Check for issues with the SampleBuffer, this should be much less likely since
     // AVSB is not actually decoding the frames anymore
-    if (self->displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-        Log(LOG_E, @"Display layer rendering failed: %@", displayLayer.error);
+    if (self->_displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+        Log(LOG_E, @"Display layer rendering failed: %@", _displayLayer.error);
 
         // Recreate the display layer. We are already on the main thread,
         // so this is safe to do right here.
@@ -243,7 +249,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     if (frame) {
         CFTimeInterval dl1 = CACurrentMediaTime();
 
-        LogOnce(LOG_I, @"Frame pacing: using AVSampleBufferDisplayLayer target %f Hz with %d FPS stream", 1.0f / (deadline - start), self->frameRate);
+        LogOnce(LOG_I, @"Frame pacing: using AVSampleBufferDisplayLayer target %f Hz with %d FPS stream", 1.0f / (deadline - start), self->_frameRate);
 
         // The system works best with properly timed video frames, which we time to the end of the next vsync period,
         // the earliest they can be displayed due to double-buffering.
@@ -290,17 +296,17 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         CMTimebaseSetTime(timebase, pts);
         CMTimebaseSetRate(timebase, 1.0);
 
-        [self->displayLayer setControlTimebase:timebase];
+        [self->_displayLayer setControlTimebase:timebase];
         Log(LOG_I, @"Setting timebase for stream to %d / %d", pts.value, pts.timescale);
     }
 
-    [self->displayLayer enqueueSampleBuffer:frame.sampleBuffer];
+    [self->_displayLayer enqueueSampleBuffer:frame.sampleBuffer];
 
 #ifdef DISPLAYLINK_VERBOSE
     // Some OS-level metrics I'm not sure what to do with
     if (@available(iOS 17.4, tvOS 17.4, *)) {
         if (frame.frameNumber % 600 == 0) {
-            [self->displayLayer.sampleBufferRenderer loadVideoPerformanceMetricsWithCompletionHandler:^(AVVideoPerformanceMetrics * videoMetrics) {
+            [self->_displayLayer.sampleBufferRenderer loadVideoPerformanceMetricsWithCompletionHandler:^(AVVideoPerformanceMetrics * videoMetrics) {
                 Log(LOG_I, @"AVVideoPerformanceMetrics: frames %d, dropped %d (%.1f%%), optimized %d (%.1f%%), accumulatedDelay %f",
                     videoMetrics.totalNumberOfFrames, // The total number of frames that display if no frames drop.
                     videoMetrics.numberOfDroppedFrames, // The total number of frames the system drops prior to decoding or from missing the display deadline
@@ -315,7 +321,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
     if (frame.frameType == FRAME_TYPE_IDR) {
         // Ensure the layer is visible now
-        self->displayLayer.hidden = NO;
+        self->_displayLayer.hidden = NO;
 
         // Tell our parent VC to hide the progress indicator
         [self->_callbacks videoContentShown];
@@ -328,10 +334,10 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         [_displayLink invalidate];
     }
 
-    if (decompressionSession != NULL) {
-        VTDecompressionSessionInvalidate(decompressionSession);
-        CFRelease(decompressionSession);
-        decompressionSession = nil;
+    if (_decompressionSession != NULL) {
+        VTDecompressionSessionInvalidate(_decompressionSession);
+        CFRelease(_decompressionSession);
+        _decompressionSession = nil;
     }
 }
 
@@ -557,12 +563,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             break;
     }
 
-    if (contentLightLevelInfo) {
-        SET_EXTENSION(kCMFormatDescriptionExtension_ContentLightLevelInfo, contentLightLevelInfo);
+    if (_contentLightLevelInfo) {
+        SET_EXTENSION(kCMFormatDescriptionExtension_ContentLightLevelInfo, _contentLightLevelInfo);
     }
 
-    if (masteringDisplayColorVolume) {
-        SET_EXTENSION(kCMFormatDescriptionExtension_MasteringDisplayColorVolume, masteringDisplayColorVolume);
+    if (_masteringDisplayColorVolume) {
+        SET_EXTENSION(kCMFormatDescriptionExtension_MasteringDisplayColorVolume, _masteringDisplayColorVolume);
     }
 
     // Referenced the VP9 code in Chrome that performs a similar function
@@ -611,7 +617,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             if (bufferType == BUFFER_TYPE_VPS || bufferType == BUFFER_TYPE_SPS || bufferType == BUFFER_TYPE_PPS) {
                 // Add new parameter set into the parameter set array
                 int startLen = data[2] == 0x01 ? 3 : 4;
-                [parameterSetBuffers addObject:[NSData dataWithBytes:&data[startLen] length:length - startLen]];
+                [_parameterSetBuffers addObject:[NSData dataWithBytes:&data[startLen] length:length - startLen]];
             }
 
             // Data is NOT to be freed here. It's a direct usage of the caller's buffer.
@@ -626,18 +632,18 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         // NB: This logic depends on the fact that we submit all picture data in one buffer!
 
         // Free the old format description
-        if (formatDesc != NULL) {
-            CFRelease(formatDesc);
-            formatDesc = NULL;
+        if (_formatDesc != NULL) {
+            CFRelease(_formatDesc);
+            _formatDesc = NULL;
         }
 
-        if (videoFormat & VIDEO_FORMAT_MASK_H264) {
+        if (_videoFormat & VIDEO_FORMAT_MASK_H264) {
             // Construct parameter set arrays for the format description
-            size_t parameterSetCount = [parameterSetBuffers count];
+            size_t parameterSetCount = [_parameterSetBuffers count];
             const uint8_t* parameterSetPointers[parameterSetCount];
             size_t parameterSetSizes[parameterSetCount];
             for (int i = 0; i < parameterSetCount; i++) {
-                NSData* parameterSet = parameterSetBuffers[i];
+                NSData* parameterSet = _parameterSetBuffers[i];
                 parameterSetPointers[i] = parameterSet.bytes;
                 parameterSetSizes[i] = parameterSet.length;
             }
@@ -648,22 +654,22 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                                                                          parameterSetPointers,
                                                                          parameterSetSizes,
                                                                          NAL_LENGTH_PREFIX_SIZE,
-                                                                         &formatDesc);
+                                                                         &_formatDesc);
             if (status != noErr) {
                 Log(LOG_E, @"Failed to create H264 format description: %d", (int)status);
-                formatDesc = NULL;
+                _formatDesc = NULL;
             }
 
             // Free parameter set buffers after submission
-            [parameterSetBuffers removeAllObjects];
+            [_parameterSetBuffers removeAllObjects];
         }
-        else if (videoFormat & VIDEO_FORMAT_MASK_H265) {
+        else if (_videoFormat & VIDEO_FORMAT_MASK_H265) {
             // Construct parameter set arrays for the format description
-            size_t parameterSetCount = [parameterSetBuffers count];
+            size_t parameterSetCount = [_parameterSetBuffers count];
             const uint8_t* parameterSetPointers[parameterSetCount];
             size_t parameterSetSizes[parameterSetCount];
             for (int i = 0; i < parameterSetCount; i++) {
-                NSData* parameterSet = parameterSetBuffers[i];
+                NSData* parameterSet = _parameterSetBuffers[i];
                 parameterSetPointers[i] = parameterSet.bytes;
                 parameterSetSizes[i] = parameterSet.length;
             }
@@ -672,12 +678,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
             NSMutableDictionary* videoFormatParams = [[NSMutableDictionary alloc] init];
 
-            if (contentLightLevelInfo) {
-                [videoFormatParams setObject:contentLightLevelInfo forKey:(__bridge NSString*)kCMFormatDescriptionExtension_ContentLightLevelInfo];
+            if (_contentLightLevelInfo) {
+                [videoFormatParams setObject:_contentLightLevelInfo forKey:(__bridge NSString*)kCMFormatDescriptionExtension_ContentLightLevelInfo];
             }
 
-            if (masteringDisplayColorVolume) {
-                [videoFormatParams setObject:masteringDisplayColorVolume forKey:(__bridge NSString*)kCMFormatDescriptionExtension_MasteringDisplayColorVolume];
+            if (_masteringDisplayColorVolume) {
+                [videoFormatParams setObject:_masteringDisplayColorVolume forKey:(__bridge NSString*)kCMFormatDescriptionExtension_MasteringDisplayColorVolume];
             }
 
             status = CMVideoFormatDescriptionCreateFromHEVCParameterSets(kCFAllocatorDefault,
@@ -686,21 +692,21 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                                                                          parameterSetSizes,
                                                                          NAL_LENGTH_PREFIX_SIZE,
                                                                          (__bridge CFDictionaryRef)videoFormatParams,
-                                                                         &formatDesc);
+                                                                         &_formatDesc);
 
             if (status != noErr) {
                 Log(LOG_E, @"Failed to create HEVC format description: %d", (int)status);
-                formatDesc = NULL;
+                _formatDesc = NULL;
             }
 
             // Free parameter set buffers after submission
-            [parameterSetBuffers removeAllObjects];
+            [_parameterSetBuffers removeAllObjects];
         }
-        else if (videoFormat & VIDEO_FORMAT_MASK_AV1) {
+        else if (_videoFormat & VIDEO_FORMAT_MASK_AV1) {
             NSData* fullFrameData = [NSData dataWithBytesNoCopy:data length:length freeWhenDone:NO];
 
             Log(LOG_I, @"Constructing new AV1 format description");
-            formatDesc = [self createAV1FormatDescriptionForIDRFrame:fullFrameData];
+            _formatDesc = [self createAV1FormatDescriptionForIDRFrame:fullFrameData];
         }
         else {
             // Unsupported codec!
@@ -708,7 +714,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         }
     }
 
-    if (formatDesc == NULL) {
+    if (_formatDesc == NULL) {
         // Can't decode if we haven't gotten our parameter sets yet
         free(data);
         return DR_NEED_IDR;
@@ -735,7 +741,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 
     // H.264 and HEVC formats require NAL prefix fixups from Annex B to length-delimited
-    if (videoFormat & (VIDEO_FORMAT_MASK_H264 | VIDEO_FORMAT_MASK_H265)) {
+    if (_videoFormat & (VIDEO_FORMAT_MASK_H264 | VIDEO_FORMAT_MASK_H265)) {
         int lastOffset = -1;
         for (int i = 0; i < length - NALU_START_PREFIX_SIZE; i++) {
             // Search for a NALU
@@ -775,7 +781,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     CMSampleBufferRef sampleBuffer;
     status = CMSampleBufferCreateReady(kCFAllocatorDefault,
                                   frameBlockBuffer,
-                                  formatDesc, 1, 1,
+                                  _formatDesc, 1, 1,
                                   &sampleTiming, 0, NULL,
                                   &sampleBuffer);
     if (status != noErr) {
@@ -785,15 +791,18 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         return DR_NEED_IDR;
     }
 
-    OSStatus decodeStatus = [self decodeFrameWithSampleBuffer:sampleBuffer
-                                                  frameNumber:du->frameNumber
-                                                    frameType:du->frameType
-                                              decodeStartTime:decodeStartTime];
-    if (decodeStatus != noErr) {
-        Log(LOG_E, @"Failed to decompress frame: %d", decodeStatus);
-        return DR_NEED_IDR;
+    OSStatus decodeStatus;
+    if (0 && _renderingBackend == RENDER_METAL) {
+        decodeStatus = [self decodeFrameToLinearColorspaceWithSampleBuffer:sampleBuffer
+                                             frameNumber:du->frameNumber
+                                               frameType:du->frameType
+                                         decodeStartTime:decodeStartTime];
+    } else {
+        decodeStatus = [self decodeFrameWithSampleBuffer:sampleBuffer
+                                             frameNumber:du->frameNumber
+                                               frameType:du->frameType
+                                         decodeStartTime:decodeStartTime];
     }
-
     // Dereference the buffers
     CFRelease(dataBlockBuffer);
     CFRelease(frameBlockBuffer);
@@ -802,98 +811,149 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     return DR_OK;
 }
 
+// For experimenting with improved HDR tone-mapping by directly decoding to linear so we can tonemap using
+// the host's metadata.
+- (OSStatus)decodeFrameToLinearColorspaceWithSampleBuffer:(CMSampleBufferRef)sampleBuffer
+                                              frameNumber:(int)frameNumber
+                                                frameType:(int)frameType
+                                          decodeStartTime:(CFTimeInterval)decodeStartTime
+ {
+    NSDictionary *linearAttributes = @{
+      (id)kCVPixelBufferPixelFormatTypeKey    : @(kCVPixelFormatType_64RGBAHalf),  // half-float RGBA
+      (id)kCVImageBufferColorPrimariesKey     : (id)kCVImageBufferColorPrimaries_ITU_R_2020, // wide-gamut primaries (Rec.2020)
+      (id)kCVImageBufferTransferFunctionKey   : (id)kCVImageBufferTransferFunction_Linear, // linear transfer function
+      (id)kCVImageBufferYCbCrMatrixKey        : (id)kCVImageBufferYCbCrMatrix_ITU_R_2020, // Y′CbCr matrix → RGB matrix (Rec.2020)
+      (id)kCVPixelBufferMetalCompatibilityKey : @YES // make it GPU-compatible
+    };
+
+    if (frameType == FRAME_TYPE_IDR || _decompressionSession == nil) {
+        [self setupDecompressionSessionWithAttributes:linearAttributes];
+    }
+
+    OSStatus status = VTDecompressionSessionDecodeFrameWithOutputHandler(
+        _decompressionSession, sampleBuffer, 0, NULL,
+        ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime pts, CMTime duration) {
+            CVPixelBufferRef pixelBuffer = CVPixelBufferRetain((CVPixelBufferRef)imageBuffer);
+            //Log(LOG_D, @"Decoded to PixelBuffer %@", pixelBuffer); // dumps full frame details
+
+            // Dispatch onto our higher priority queue
+            dispatch_async(self->_vtq, ^{
+                Frame *frame = [[Frame alloc] initWithPixelBufffer:pixelBuffer
+                                                       frameNumber:frameNumber
+                                                         frameType:frameType
+                                                               pts:pts];
+                [frame setFormatDesc:self->_formatDesc];
+                int framesDropped = [self->_frameQueue enqueue:frame];
+
+                static PlotMetrics frameQueueMetrics = {};
+                [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES value:[self->_frameQueue count] plotMetrics:&frameQueueMetrics];
+                [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
+
+                [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
+
+                // It's important we capture host metrics on the incoming thread, as this frame object
+                // may have been dropped by the above enqueue
+                static CFTimeInterval lastHostFrame = 0.0f;
+                if (lastHostFrame != 0) {
+                    [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
+                }
+                lastHostFrame = frame.pts;
+
+                // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
+                static PlotMetrics decodeMetrics = {};
+                [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE value:(CACurrentMediaTime() - decodeStartTime) * 1000.0 plotMetrics:&decodeMetrics];
+                [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
+            });
+        });
+     return status;
+}
+
 - (OSStatus)decodeFrameWithSampleBuffer:(CMSampleBufferRef)sampleBuffer
                             frameNumber:(int)frameNumber
                               frameType:(int)frameType
                         decodeStartTime:(CFTimeInterval)decodeStartTime {
-  if (frameType == FRAME_TYPE_IDR || decompressionSession == nil) {
+  if (frameType == FRAME_TYPE_IDR || _decompressionSession == nil) {
     [self setupDecompressionSession];
   }
 
   OSStatus status = VTDecompressionSessionDecodeFrameWithOutputHandler(
-    decompressionSession,
-    sampleBuffer,
-    0,
-    NULL,
-    ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
-        if (status != noErr || !imageBuffer) {
+      _decompressionSession,
+      sampleBuffer,
+      0,
+      NULL,
+      ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime presentationTimestamp, CMTime presentationDuration) {
+          if (status != noErr || !imageBuffer) {
             NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];
             Log(LOG_E, @"Decompression session error: %@", error);
             LiRequestIdrFrame();
             return;
-        }
+          }
 
-        CMSampleBufferRef sampleBufferOut = nil;
-        CVPixelBufferRef pixelBuffer = nil;
+          CMSampleBufferRef sampleBufferOut = nil;
+          CVPixelBufferRef pixelBuffer = nil;
 
-        // AVSampleBuffer path: package into a SampleBuffer
-        if (self->_renderingBackend == RENDER_AVSB) {
-            if (self->formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->formatDescImageBuffer, imageBuffer)) {
-                OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->formatDescImageBuffer));
-                if (res != noErr) {
-                    Log(LOG_E, @"Failed to create video format description from imageBuffer");
-                    return;
-                }
+          // AVSampleBuffer path: package into a SampleBuffer
+          if (self->_renderingBackend == RENDER_AVSB) {
+            if (self->_formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->_formatDescImageBuffer, imageBuffer)) {
+              OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->_formatDescImageBuffer));
+              if (res != noErr) {
+                Log(LOG_E, @"Failed to create video format description from imageBuffer");
+                return;
+              }
             }
 
-            if (self->formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->formatDescImageBuffer, imageBuffer)) {
-                OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->formatDescImageBuffer));
-                if (res != noErr) {
-                    Log(LOG_E, @"Failed to create video format description from imageBuffer");
-                    return;
-                }
+            if (self->_formatDescImageBuffer == NULL || !CMVideoFormatDescriptionMatchesImageBuffer(self->_formatDescImageBuffer, imageBuffer)) {
+              OSStatus res = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, imageBuffer, &(self->_formatDescImageBuffer));
+              if (res != noErr) {
+                Log(LOG_E, @"Failed to create video format description from imageBuffer");
+                return;
+              }
             }
 
             CMSampleTimingInfo sampleTiming = {kCMTimeInvalid, presentationTimestamp, presentationDuration};
 
-            OSStatus err = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, imageBuffer,
-                                                                    self->formatDescImageBuffer, &sampleTiming, &sampleBufferOut);
+            OSStatus err =
+                CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, imageBuffer, self->_formatDescImageBuffer, &sampleTiming, &sampleBufferOut);
             if (err != noErr) {
-                Log(LOG_E, @"Error creating sample buffer for decompressed image buffer %d", (int)err);
-                return;
+              Log(LOG_E, @"Error creating sample buffer for decompressed image buffer %d", (int)err);
+              return;
             }
-        } else if (self->_renderingBackend == RENDER_METAL) {
+          } else if (self->_renderingBackend == RENDER_METAL) {
             // Metal path: retain the pixelBuffer here so it survives the dispatch
             pixelBuffer = CVPixelBufferRetain((CVPixelBufferRef)imageBuffer);
-            Log(LOG_D, @"Decoded to PixelBuffer %@", pixelBuffer); // dumps full frame details
-        }
-
-      // Dispatch onto our higher priority queue
-      dispatch_async(self->_vtq, ^{
-          Frame *frame = nil;
-          if (self->_renderingBackend == RENDER_AVSB) {
-              frame = [[Frame alloc] initWithSampleBuffer:sampleBufferOut
-                                              frameNumber:frameNumber
-                                                frameType:frameType];
-          } else {
-              frame = [[Frame alloc] initWithPixelBufffer:pixelBuffer
-                                              frameNumber:frameNumber
-                                                frameType:frameType
-                                                      pts:presentationTimestamp];
-              [frame setFormatDesc:self->formatDesc];
           }
-          int framesDropped = [self->_frameQueue enqueue:frame];
 
-        static PlotMetrics frameQueueMetrics = {};
-        [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES value:[self->_frameQueue count] plotMetrics:&frameQueueMetrics];
-        [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
+          // Dispatch onto our higher priority queue
+          dispatch_async(self->_vtq, ^{
+              Frame *frame = nil;
+              if (self->_renderingBackend == RENDER_AVSB) {
+                frame = [[Frame alloc] initWithSampleBuffer:sampleBufferOut frameNumber:frameNumber frameType:frameType];
+              } else {
+                frame = [[Frame alloc] initWithPixelBufffer:pixelBuffer frameNumber:frameNumber frameType:frameType pts:presentationTimestamp];
+                [frame setFormatDesc:self->_formatDesc];
+              }
+              int framesDropped = [self->_frameQueue enqueue:frame withSlackSize:3];
 
-        [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
+              static PlotMetrics frameQueueMetrics = {};
+              [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES value:[self->_frameQueue count] plotMetrics:&frameQueueMetrics];
+              [self safeCopyMetricsTo:&self->_frameQueueMetrics from:&frameQueueMetrics];
 
-        // It's important we capture host metrics on the incoming thread, as this frame object
-        // may have been dropped by the above enqueue
-        static CFTimeInterval lastHostFrame = 0.0f;
-        if (lastHostFrame != 0) {
-          [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
-        }
-        lastHostFrame = frame.pts;
+              [self->_callbacks observeFloat:PLOT_DROPPED value:framesDropped];
 
-        // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
-        static PlotMetrics decodeMetrics = {};
-        [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE value:(CACurrentMediaTime() - decodeStartTime) * 1000.0 plotMetrics:&decodeMetrics];
-        [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
+              // It's important we capture host metrics on the incoming thread, as this frame object
+              // may have been dropped by the above enqueue
+              static CFTimeInterval lastHostFrame = 0.0f;
+              if (lastHostFrame != 0) {
+                [self->_callbacks observeFloat:PLOT_HOST_FRAMETIME value:(frame.pts - lastHostFrame) * 1000.0];
+              }
+              lastHostFrame = frame.pts;
+
+              // Decode time is not graphed because it is marked as hidden, but we can use the same mechanism for the value used by stats
+              static PlotMetrics decodeMetrics = {};
+              [self->_callbacks observeFloatReturnMetrics:PLOT_DECODE value:(CACurrentMediaTime() - decodeStartTime) * 1000.0 plotMetrics:&decodeMetrics];
+              [self safeCopyMetricsTo:&self->_decodeMetrics from:&decodeMetrics];
+          });
       });
-    });
 
   return status;
 }
@@ -929,13 +989,20 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         mdcv.luminance_min = __builtin_bswap32(hdrMetadata.minDisplayLuminance);
 
         NSData* newMdcv = [NSData dataWithBytes:&mdcv length:sizeof(mdcv)];
-        if (masteringDisplayColorVolume == nil || ![newMdcv isEqualToData:masteringDisplayColorVolume]) {
-            masteringDisplayColorVolume = newMdcv;
+        if (_masteringDisplayColorVolume == nil || ![newMdcv isEqualToData:_masteringDisplayColorVolume]) {
+            _masteringDisplayColorVolume = newMdcv;
             metadataChanged = YES;
+
+            Log(LOG_I, @"HDR Mastering Display Color Volume: G(%d,%d) B(%d,%d) R(%d,%d) white point(%d,%d) luminance (%d,%d)",
+                mdcv.primaries[0].x, mdcv.primaries[0].y,
+                mdcv.primaries[1].x, mdcv.primaries[1].y,
+                mdcv.primaries[2].x, mdcv.primaries[2].y,
+                mdcv.white_point.x, mdcv.white_point.y,
+                mdcv.luminance_max, mdcv.luminance_min);
         }
     }
-    else if (masteringDisplayColorVolume != nil) {
-        masteringDisplayColorVolume = nil;
+    else if (_masteringDisplayColorVolume != nil) {
+        _masteringDisplayColorVolume = nil;
         metadataChanged = YES;
     }
 
@@ -950,13 +1017,16 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         cll.max_frame_average_light_level = __builtin_bswap16(hdrMetadata.maxFrameAverageLightLevel);
 
         NSData* newCll = [NSData dataWithBytes:&cll length:sizeof(cll)];
-        if (contentLightLevelInfo == nil || ![newCll isEqualToData:contentLightLevelInfo]) {
-            contentLightLevelInfo = newCll;
+        if (_contentLightLevelInfo == nil || ![newCll isEqualToData:_contentLightLevelInfo]) {
+            _contentLightLevelInfo = newCll;
             metadataChanged = YES;
+
+            Log(LOG_I, @"HDR maxCLL: %d maxFALL: %d",
+                cll.max_content_light_level, cll.max_frame_average_light_level);
         }
     }
-    else if (contentLightLevelInfo != nil) {
-        contentLightLevelInfo = nil;
+    else if (_contentLightLevelInfo != nil) {
+        _contentLightLevelInfo = nil;
         metadataChanged = YES;
     }
 
@@ -976,14 +1046,15 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
 - (void)getAllStats:(video_stats_t *)stats {
     dispatch_sync(_sq, ^{
+        stats->renderingBackend = _renderingBackend;
         memcpy(&stats->decodeMetrics, &_decodeMetrics, sizeof(PlotMetrics));
         memcpy(&stats->frameQueueMetrics, &_frameQueueMetrics, sizeof(PlotMetrics));
-        memcpy(&stats->frameDropMetrics, &_frameDropMetrics, sizeof(PlotMetrics));
+        [_frameQueue.frameDropMetrics copyMetrics:&stats->frameDropMetrics];
     });
 }
 
 // When streaming lower framerate content on a ProMotion display, the screen refresh rate can be
-// reduced, optimizing battery life.
+// reduced, optimizing battery life. Not currently used, it doesn't seem as reliable as I'd like.
 - (void)optimizeRefreshRate {
     static NSArray<NSNumber *> *supportedRates;
     static dispatch_once_t onceToken;

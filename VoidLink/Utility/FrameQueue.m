@@ -18,6 +18,9 @@
     int _framesIn;
     CMTime _ptsCorrection;
     os_unfair_lock _lock;
+
+    FloatBuffer *_queueSizeHistory;
+    CFTimeInterval _lastHWMAdjustTime;
 }
 
 + (instancetype)sharedInstance {
@@ -46,16 +49,18 @@
 - (instancetype)_initSingleton {
     self = [super init];
     if (self) {
-        _droppedLast      = NO;
-        _frameDropMetrics = [[FloatBuffer alloc] initWithCapacity:512];
-        _framesIn         = 0;
-        _highWaterMark    = 2;
-        _maxCapacity      = 15;
-        _ptsCorrection    = CMTimeMake(0, 90000);
-        _lock             = OS_UNFAIR_LOCK_INIT;
+        _droppedLast       = NO;
+        _frameDropMetrics  = [[FloatBuffer alloc] initWithCapacity:512];
+        _framesIn          = 0;
+        _highWaterMark     = 2;
+        _maxCapacity       = 15;
+        _ptsCorrection     = CMTimeMake(0, 90000);
+        _queueSizeHistory  = [[FloatBuffer alloc] initWithCapacity:64];
+        _lastHWMAdjustTime = CACurrentMediaTime();
+        _lock              = OS_UNFAIR_LOCK_INIT;
 
 	    // ring buffer
-	    _capacity = (int)_maxCapacity;
+	    _capacity = _maxCapacity;
         _buffer = [NSMutableArray arrayWithCapacity:_capacity];
         for (int i = 0; i < _capacity; i++) {
             [_buffer addObject:[NSNull null]];
@@ -118,12 +123,10 @@
     }
 }
 
-- (int)enqueue:(Frame *)frame {
-    os_unfair_lock_lock(&_lock);
+- (int)_unsafeEnqueue:(Frame *)frame withDropTarget:(int)frameDropTarget {
     int dropCount = 0;
-
     // Always accept IDR frames, allow exceeding HWM
-    if (frame.frameType == FRAME_TYPE_IDR || _count < _highWaterMark) {
+    if (frame.frameType == FRAME_TYPE_IDR || _count < frameDropTarget) {
         [self _pushFrame:frame];
         _droppedLast = NO;
     } else {
@@ -148,6 +151,42 @@
     // for estimatedFramerate purposes
     _framesIn++;
     [_frameDropMetrics addValue:(float)dropCount];
+    return dropCount;
+}
+
+// enqueue with simple alternate-drop logic
+- (int)enqueue:(Frame *)frame {
+    os_unfair_lock_lock(&_lock);
+    int dropCount = [self _unsafeEnqueue:frame withDropTarget:_highWaterMark];
+    os_unfair_lock_unlock(&_lock);
+    return dropCount;
+}
+
+// enqueue that is a bit more flexixble, using the same 500ms queue size history method as moonlight-qt.
+- (int)enqueue:(Frame *)frame withSlackSize:(int)slack {
+    os_unfair_lock_lock(&_lock);
+
+    // new data point for queue health
+    [_queueSizeHistory addValue:(float)_count];
+
+    // The "target" initially starts as the size of the buffer chosen by the user. 1-5 default 2. We drop a frame
+    // when the queue size exceeds this amount.
+    int frameDropTarget = _highWaterMark;
+    if (_queueSizeHistory.minValue < 1.0f) {
+        // If the queue has cleared out at least once in the past history period, be more lenient about dropping frames.
+        frameDropTarget += slack;
+//        FQLog(LOG_I, @"allowing frameDropTarget of %d (history %.0f/%.0f/%.2f)", frameDropTarget,
+//            _queueSizeHistory.minValue, _queueSizeHistory.maxValue, _queueSizeHistory.averageValue);
+    } else if (_queueSizeHistory.minValue == _queueSizeHistory.maxValue) {
+        // If the queue has been in the same state for the entire period, it's possible to get stuck there for a while.
+        // Lower the FDT by 1 to force a frame to be dropped and hopefully unstick things.
+        FQLog(LOG_I, @"queue stuck at %.0f, forcing a drop", _queueSizeHistory.minValue);
+        frameDropTarget--;
+    }
+
+    // original enqueue logic still applies if we're full
+    int dropCount = [self _unsafeEnqueue:frame withDropTarget:frameDropTarget];
+
     os_unfair_lock_unlock(&_lock);
     return dropCount;
 }

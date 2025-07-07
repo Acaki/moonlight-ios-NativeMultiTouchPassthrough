@@ -1,3 +1,4 @@
+#import <UIKit/UIKit.h>
 #import "FloatBuffer.h"
 
 @implementation FloatBuffer {
@@ -203,6 +204,46 @@
             plotMetrics->samplerate = (float)((plotMetrics->nsamples - 1) / elapsed);
         }
     }
+}
+
+- (void)clear {
+    dispatch_sync(_sq, ^{
+        memset(_buffer, 0, sizeof(float) * _capacity);
+        memset(_timestamps, 0, sizeof(CFTimeInterval) * _capacity);
+        _head = 0;
+        _count = 0;
+        _minValue = 0.0f;
+        _maxValue = 0.0f;
+        _sum = 0.0;
+    });
+}
+
+- (void)enumerateValuesWithBlock:(void (^)(float value, BOOL *stop))block {
+    if (!block) return;
+    dispatch_sync(_sq, ^{
+        if (_count == 0) return;
+        int tail = (_head + _capacity - _count) & (_capacity - 1);
+        BOOL stop = NO;
+        for (int i = 0; i < _count && !stop; i++) {
+            int idx = (tail + i) & (_capacity - 1);
+            block(_buffer[idx], &stop);
+        }
+    });
+}
+
+- (void)dumpToCSV:(NSString *)filePath {
+    if (!filePath) return;
+    dispatch_sync(_sq, ^{
+        if (_count == 0) return;
+        NSMutableString *output = [NSMutableString string];
+        int tail = (_head + _capacity - _count) & (_capacity - 1);
+        for (int i = 0; i < _count; i++) {
+            int idx = (tail + i) & (_capacity - 1);
+            [output appendFormat:@"%f,", _buffer[idx]];
+        }
+        [output writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        [UIPasteboard generalPasteboard].string = output;
+    });
 }
 
 // Debug output for use with %@

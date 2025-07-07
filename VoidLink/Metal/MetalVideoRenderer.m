@@ -93,7 +93,7 @@ struct Vertex {
     size_t _lastDrawableHeight;
     id<MTLBuffer> _CscParamsBuffer;
     id<MTLBuffer> _VideoVertexBuffer;
-    CFTimeInterval _lastFrametime;
+    CFTimeInterval _lastPresented;
 }
 
 - (instancetype)initWithMetalDevice:(id<MTLDevice>)device
@@ -110,7 +110,7 @@ struct Vertex {
         _commandQueue = [_device newCommandQueue];
         _lastColorSpace = -1;
         _lastFullRange = NO;
-        _lastFrametime = CACurrentMediaTime();
+        _lastPresented = 0;
 
         CVMetalTextureCacheCreate(NULL, NULL, _device, NULL, &_textureCache);
     }
@@ -473,10 +473,12 @@ struct Vertex {
     [renderEncoder endEncoding];
 
     [drawable addPresentedHandler:^(id<MTLDrawable> d) {
-        CFTimeInterval now = CACurrentMediaTime();
-        CFTimeInterval frametime = now - self->_lastFrametime;
-        self->_lastFrametime = now;
-        [[ImGuiPlots sharedInstance] observeFloat:PLOT_FRAMETIME value:(frametime * 1000.0)];
+        CFTimeInterval presented = d.presentedTime;
+        if (self->_lastPresented > 0) {
+            CFTimeInterval frametime = presented - self->_lastPresented;
+            [[ImGuiPlots sharedInstance] observeFloat:PLOT_FRAMETIME value:(frametime * 1000.0)];
+        }
+        self->_lastPresented = presented;
     }];
 
     [commandBuffer presentDrawable:drawable];

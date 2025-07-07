@@ -35,6 +35,11 @@ typedef struct {
     float samplerate;
 } PlotMetrics;
 
+typedef enum {
+    RENDER_METAL = 0,
+    RENDER_AVSB
+} RenderingBackend;
+
 typedef struct {
     CFTimeInterval startTime;
     CFTimeInterval endTime;
@@ -48,4 +53,5 @@ typedef struct {
     PlotMetrics decodeMetrics;
     PlotMetrics frameQueueMetrics;
     PlotMetrics frameDropMetrics;
+    RenderingBackend renderingBackend;
 } video_stats_t;

@@ -12,11 +12,6 @@
 #define PlatformViewController NSViewController
 #endif
 
-typedef enum {
-    RENDER_METAL = 0,
-    RENDER_AVSB
-} RenderingBackend;
-
 @interface MetalViewController : PlatformViewController <MetalViewDelegate>
 
 @property (nonatomic) CGRect bounds;

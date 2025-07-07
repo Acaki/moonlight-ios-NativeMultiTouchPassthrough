@@ -46,6 +46,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// Export metrics for use by the classic stats overlay
 - (void)copyMetrics:(PlotMetrics *)plotMetrics;
 
+/// Clear and reset the buffer to 0.
+- (void)clear;
+
+/// Calls `block(value, timestamp)` for each value in the buffer (from oldest to newest)
+- (void)enumerateValuesWithBlock:(void (^)(float value, BOOL *stop))block;
+
+- (void)dumpToCSV:(NSString *)filePath;
+
 @end
 
 NS_ASSUME_NONNULL_END

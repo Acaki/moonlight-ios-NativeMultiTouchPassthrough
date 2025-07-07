@@ -80,7 +80,7 @@
 }
 
 - (CFDictionaryRef)getFormatDescExtensions {
-    if (!_formatDescExt) {
+    if (!_formatDescExt && _formatDesc) {
         _formatDescExt = CFRetain(CMFormatDescriptionGetExtensions(_formatDesc));
     }
     return _formatDescExt;

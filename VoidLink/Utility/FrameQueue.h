@@ -10,8 +10,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, readonly) NSUInteger count;
 @property (nonatomic) FloatBuffer *frameDropMetrics;
-@property (nonatomic) NSUInteger highWaterMark;
-@property (nonatomic, readonly) NSUInteger maxCapacity;
+@property (nonatomic) int highWaterMark;
+@property (nonatomic, readonly) int maxCapacity;
 
 + (instancetype)sharedInstance;
 
@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 - (void)clear;
 - (int)enqueue:(Frame *)frame;
+- (int)enqueue:(Frame *)frame withSlackSize:(int)slack;
 - (nullable Frame *)dequeue;
 - (nullable Frame *)dequeueWithTimeout:(CFTimeInterval)timeout;
 - (CFTimeInterval)estimatedFramerate;

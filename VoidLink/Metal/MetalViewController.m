@@ -100,7 +100,6 @@ The implementation of the cross-platform game view controller.
     CFTimeInterval deadline = update.targetTimestamp;
 
     CFTimeInterval timeout = deadline - now - _renderer.averageGPUTime;
-    Log(LOG_I, @"_renderer.averageGPUTime: %.3f ms", _renderer.averageGPUTime * 1000.0);
     if (now > deadline || timeout < 0.0f) {
         Log(LOG_W, @"Metal renderTo was called late: missed deadline by %.3f ms", (now - deadline) * 1000.0);
         timeout = 0.0f;

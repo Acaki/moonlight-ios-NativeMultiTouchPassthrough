@@ -17,7 +17,6 @@
 @interface VideoDecoderRenderer : NSObject
 
 @property (atomic, readonly) PlotMetrics decodeMetrics;
-@property (atomic, readonly) PlotMetrics frameDropMetrics;
 @property (atomic, readonly) PlotMetrics frameQueueMetrics;
 
 - (id)initWithView:(UIView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio;
