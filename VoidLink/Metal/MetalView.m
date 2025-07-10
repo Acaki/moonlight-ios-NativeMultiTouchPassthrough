@@ -5,8 +5,7 @@
 #import "MetalView.h"
 #import "MetalConfig.h"
 
-@implementation MetalView
-{
+@implementation MetalView {
 #if !RENDER_ON_MAIN_THREAD
     // The secondary thread containing the render loop.
     NSThread *_renderThread;
@@ -18,81 +17,68 @@
 
 #pragma mark - Initialization and Setup.
 
-- (instancetype)initWithFrame:(CGRect)frame
-{
+- (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
-    if (self)
-    {
+    if (self) {
         [self initCommon];
     }
     return self;
 }
 
-- (instancetype)initWithCoder:(NSCoder *)aDecoder
-{
+- (instancetype)initWithCoder:(NSCoder *)aDecoder {
     self = [super initWithCoder:aDecoder];
-    if (self)
-    {
+    if (self) {
         [self initCommon];
     }
     return self;
 }
 
-- (void)initCommon
-{
+- (void)initCommon {
 #if TARGET_OS_OSX
     self.wantsLayer = YES;
 
     self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
 #endif
 
-    _metalLayer = (CAMetalLayer*)self.layer;
+    _metalLayer = (CAMetalLayer *)self.layer;
 
     self.layer.delegate = self;
 }
 
 #if TARGET_OS_IOS || TARGET_OS_TV
-+ (Class)layerClass
-{
++ (Class)layerClass {
     return [CAMetalLayer class];
 }
 
-- (void)didMoveToWindow
-{
+- (void)didMoveToWindow {
     [self movedToWindow];
 }
 #else
-- (CALayer *)makeBackingLayer
-{
+- (CALayer *)makeBackingLayer {
     return [CAMetalLayer layer];
 }
 
-- (void)viewDidMoveToWindow
-{
+- (void)viewDidMoveToWindow {
     [self movedToWindow];
 }
-#endif // END TARGET_OS_IOS || TARGET_OS_TV
+#endif  // END TARGET_OS_IOS || TARGET_OS_TV
 
-- (void)movedToWindow
-{
+- (void)movedToWindow {
 #if !RENDER_ON_MAIN_THREAD
     // Protect _continueRunLoop with a `@synchronized` block because it's accessed by the separate
     // animation thread.
-    @synchronized(self)
-    {
+    @synchronized(self) {
         // Stop the animation loop, allowing it to complete if it's in progress.
         _continueRunLoop = NO;
     }
 
     // Create and start a secondary NSThread that has another run runloop. The NSThread
     // class calls the 'runThread' method at the start of the secondary thread's execution.
-    _renderThread =  [[NSThread alloc] initWithTarget:self
-                                             selector:@selector(runThread)
-                                               object:nil];
+    _renderThread = [[NSThread alloc] initWithTarget:self selector:@selector(runThread) object:nil];
     _continueRunLoop = YES;
     _renderThread.qualityOfService = NSQualityOfServiceUserInteractive;
     [_renderThread start];
-#endif // END !RENDER_ON_MAIN_THREAD
+#endif  // END !RENDER_ON_MAIN_THREAD
 
     // Perform any actions that need to know the size and scale of the drawable. When UIKit calls
     // didMoveToWindow after the view initialization, this is the first opportunity to notify
@@ -138,7 +124,7 @@
         }
     }
 }
-#endif // END !RENDER_ON_MAIN_THREAD
+#endif  // END !RENDER_ON_MAIN_THREAD
 
 #pragma mark - Resizing
 
@@ -147,64 +133,53 @@
 // Override all methods that indicate the view's size has changed.
 
 #if TARGET_OS_IOS || TARGET_OS_TV
-- (void)setContentScaleFactor:(CGFloat)contentScaleFactor
-{
+- (void)setContentScaleFactor:(CGFloat)contentScaleFactor {
     [super setContentScaleFactor:contentScaleFactor];
     [self resizeDrawable:self.window.screen.nativeScale];
 }
 
-- (void)layoutSubviews
-{
+- (void)layoutSubviews {
     [super layoutSubviews];
     [self resizeDrawable:self.window.screen.nativeScale];
 }
 
-- (void)setFrame:(CGRect)frame
-{
+- (void)setFrame:(CGRect)frame {
     [super setFrame:frame];
     [self resizeDrawable:self.window.screen.nativeScale];
 }
 
-- (void)setBounds:(CGRect)bounds
-{
+- (void)setBounds:(CGRect)bounds {
     [super setBounds:bounds];
     [self resizeDrawable:self.window.screen.nativeScale];
 }
 #else
-- (void)viewDidChangeBackingProperties
-{
+- (void)viewDidChangeBackingProperties {
     [super viewDidChangeBackingProperties];
     [self resizeDrawable:self.window.screen.backingScaleFactor];
 }
 
-- (void)setFrameSize:(NSSize)size
-{
+- (void)setFrameSize:(NSSize)size {
     [super setFrameSize:size];
     [self resizeDrawable:self.window.screen.backingScaleFactor];
 }
 
-- (void)setBoundsSize:(NSSize)size
-{
+- (void)setBoundsSize:(NSSize)size {
     [super setBoundsSize:size];
     [self resizeDrawable:self.window.screen.backingScaleFactor];
 }
 #endif
 
-- (void)resizeDrawable:(CGFloat)scaleFactor
-{
+- (void)resizeDrawable:(CGFloat)scaleFactor {
     CGSize newSize = self.bounds.size;
     newSize.width *= scaleFactor;
     newSize.height *= scaleFactor;
 
-    if(newSize.width <= 0 || newSize.width <= 0)
-    {
+    if (newSize.width <= 0 || newSize.width <= 0) {
         return;
     }
 
 #if RENDER_ON_MAIN_THREAD
-    if(newSize.width == _metalLayer.drawableSize.width &&
-       newSize.height == _metalLayer.drawableSize.height)
-    {
+    if (newSize.width == _metalLayer.drawableSize.width && newSize.height == _metalLayer.drawableSize.height) {
         return;
     }
 
@@ -214,11 +189,8 @@
 #else
     // The system calls all AppKit and UIKit calls that notify of a resize on the main thread. Use
     // a synchronized block to ensure that resize notifications on the delegate are atomic.
-    @synchronized(_metalLayer)
-    {
-        if(newSize.width == _metalLayer.drawableSize.width &&
-           newSize.height == _metalLayer.drawableSize.height)
-        {
+    @synchronized(_metalLayer) {
+        if (newSize.width == _metalLayer.drawableSize.width && newSize.height == _metalLayer.drawableSize.height) {
             return;
         }
 
@@ -228,6 +200,6 @@
     }
 #endif
 }
-#endif // END AUTOMATICALLY_RESIZE
+#endif  // END AUTOMATICALLY_RESIZE
 
 @end

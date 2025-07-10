@@ -1,7 +1,7 @@
+#import "MetalVideoRenderer.h"
 #import <CoreVideo/CoreVideo.h>
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
-#import "MetalVideoRenderer.h"
 #import "ImGuiPlots.h"
 
 #include <Limelight.h>
@@ -19,11 +19,7 @@ struct ParamBuffer {
 
 static const struct CscParams k_CscParams_Bt601Lim = {
     // CSC Matrix
-    {
-        {1.1644f, 0.0f, 1.5960f},
-        {1.1644f, -0.3917f, -0.8129f},
-        {1.1644f, 2.0172f, 0.0f}
-    },
+    {{1.1644f, 0.0f, 1.5960f}, {1.1644f, -0.3917f, -0.8129f}, {1.1644f, 2.0172f, 0.0f}},
 
     // Offsets
     {16.0f / 255.0f, 128.0f / 255.0f, 128.0f / 255.0f},
@@ -70,8 +66,8 @@ static const struct CscParams k_CscParams_Bt2020Full = {
 };
 
 struct Vertex {
-  vector_float4 position;
-  vector_float2 texCoord;
+    vector_float4 position;
+    vector_float2 texCoord;
 };
 
 @implementation MetalVideoRenderer {
@@ -100,14 +96,11 @@ struct Vertex {
     dispatch_semaphore_t _presentSemaphore;
 }
 
-- (instancetype)initWithMetalDevice:(id<MTLDevice>)device
-                drawablePixelFormat:(MTLPixelFormat)drawablePixelFormat
-                          framerate:(float)framerate
-{
+- (instancetype)initWithMetalDevice:(id<MTLDevice>)device drawablePixelFormat:(MTLPixelFormat)drawablePixelFormat framerate:(float)framerate {
     self = [super init];
     if (self) {
         _sq = dispatch_queue_create("com.moonlight.MetalVideoRenderer",
-                                     dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
+                                    dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
         _averageGPUTime = (1.0f / framerate) / 2;
         _device = device;
         _nextDrawable = nil;
@@ -121,9 +114,9 @@ struct Vertex {
         _pendingPresentCount = 0;
         _presentSemaphore = dispatch_semaphore_create(0);
 
-        CFStringRef keys[1] = { kCVMetalTextureUsage };
-        NSUInteger values[1] = { MTLTextureUsageShaderRead };
-        CFDictionaryRef cacheAttributes = CFDictionaryCreate(kCFAllocatorDefault, (const void**)keys, (const void**)values, 1, NULL, NULL);
+        CFStringRef keys[1] = {kCVMetalTextureUsage};
+        NSUInteger values[1] = {MTLTextureUsageShaderRead};
+        CFDictionaryRef cacheAttributes = CFDictionaryCreate(kCFAllocatorDefault, (const void **)keys, (const void **)values, 1, NULL, NULL);
         CVMetalTextureCacheCreate(kCFAllocatorDefault, cacheAttributes, _device, NULL, &_textureCache);
         CFRelease(cacheAttributes);
 
@@ -136,9 +129,7 @@ struct Vertex {
 }
 
 #if !TARGET_OS_TV
-- (void) applyEDRFromFrame:(Frame *)frame
-                   toLayer:(CAMetalLayer *)layer
-{
+- (void)applyEDRFromFrame:(Frame *)frame toLayer:(CAMetalLayer *)layer {
     CFDictionaryRef ext = [frame getFormatDescExtensions];
 
     FQLog(LOG_I, @"ext: %@", ext);
@@ -153,9 +144,7 @@ struct Vertex {
         FQLog(LOG_I, @"ext CLLI %@", contentDataRef);
     }
 
-    if (   masteringData && CFDataGetLength(masteringData) == 24
-        && contentDataRef && CFDataGetLength(contentDataRef) == 4
-       ) {
+    if (masteringData && CFDataGetLength(masteringData) == 24 && contentDataRef && CFDataGetLength(contentDataRef) == 4) {
         NSData *displayData = (__bridge NSData *)masteringData;
         NSData *contentData = (__bridge NSData *)contentDataRef;
 
@@ -165,9 +154,7 @@ struct Vertex {
         CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(name);
         layer.colorspace = colorspace;
 
-        layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithDisplayInfo:displayData
-                                                            contentInfo:contentData
-                                                     opticalOutputScale:100.0f];
+        layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithDisplayInfo:displayData contentInfo:contentData opticalOutputScale:100.0f];
 
         FQLog(LOG_I, @"EDRMetadata set from MDCV %@ and CLLI %@", displayData, contentData);
     } else {
@@ -177,9 +164,7 @@ struct Vertex {
         CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(name);
         layer.colorspace = colorspace;
 
-        layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithMinLuminance:0.0005f
-                                                            maxLuminance:1000.0f
-                                                      opticalOutputScale:100.0f];
+        layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithMinLuminance:0.0005f maxLuminance:1000.0f opticalOutputScale:100.0f];
     }
 }
 #endif
@@ -187,12 +172,12 @@ struct Vertex {
 - (int)getFrameColorspaceAndRange:(Frame *)frame isFullRange:(BOOL *)isFullRange {
     CFDictionaryRef ext = [frame getFormatDescExtensions];
 
-    //FQLog(LOG_I, @"%@", ext);
+    // FQLog(LOG_I, @"%@", ext);
 
     // Full Range boolean
     CFBooleanRef fullRangeRef = CFDictionaryGetValue(ext, kCMFormatDescriptionExtension_FullRangeVideo);
     *isFullRange = NO;
-    if ( fullRangeRef && CFGetTypeID(fullRangeRef) == CFBooleanGetTypeID() ) {
+    if (fullRangeRef && CFGetTypeID(fullRangeRef) == CFBooleanGetTypeID()) {
         *isFullRange = CFBooleanGetValue(fullRangeRef);
     }
 
@@ -206,10 +191,7 @@ struct Vertex {
     return COLORSPACE_REC_601;
 }
 
-- (BOOL) updateColorSpaceForFrame:(Frame *)frame
-                          toLayer:(CAMetalLayer *)layer
-                   layerDidChange:(BOOL *)layerDidChange
-{
+- (BOOL)updateColorSpaceForFrame:(Frame *)frame toLayer:(CAMetalLayer *)layer layerDidChange:(BOOL *)layerDidChange {
     BOOL fullRange = NO;
     int colorspace = [self getFrameColorspaceAndRange:frame isFullRange:&fullRange];
     if (colorspace != _lastColorSpace || fullRange != _lastFullRange) {
@@ -219,53 +201,53 @@ struct Vertex {
         struct ParamBuffer paramBuffer;
 
         switch (colorspace) {
-        case COLORSPACE_REC_709:
-            newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_709);
-            newPixelFormat = MTLPixelFormatBGRA8Unorm;
-            paramBuffer.cscParams = (fullRange ? k_CscParams_Bt709Full : k_CscParams_Bt709Lim);
-            break;
-        case COLORSPACE_REC_2020: {
-            CFDictionaryRef ext = [frame getFormatDescExtensions];
-            CFStringRef frame_trc = CFDictionaryGetValue(ext, kCVImageBufferTransferFunctionKey);
-            if (CFEqual(frame_trc, kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ)) {
-                isHDR = YES;
-                newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
-                newPixelFormat = MTLPixelFormatBGR10A2Unorm;
-            } else {
-                // SDR 2020
-                newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2020);
-                newPixelFormat = MTLPixelFormatBGR10A2Unorm;
+            case COLORSPACE_REC_709:
+                newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_709);
+                newPixelFormat = MTLPixelFormatBGRA8Unorm;
+                paramBuffer.cscParams = (fullRange ? k_CscParams_Bt709Full : k_CscParams_Bt709Lim);
+                break;
+            case COLORSPACE_REC_2020: {
+                CFDictionaryRef ext = [frame getFormatDescExtensions];
+                CFStringRef frame_trc = CFDictionaryGetValue(ext, kCVImageBufferTransferFunctionKey);
+                if (CFEqual(frame_trc, kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ)) {
+                    isHDR = YES;
+                    newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
+                    newPixelFormat = MTLPixelFormatBGR10A2Unorm;
+                } else {
+                    // SDR 2020
+                    newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2020);
+                    newPixelFormat = MTLPixelFormatBGR10A2Unorm;
+                }
+                paramBuffer.cscParams = (fullRange ? k_CscParams_Bt2020Full : k_CscParams_Bt2020Lim);
+                break;
             }
-            paramBuffer.cscParams = (fullRange ? k_CscParams_Bt2020Full : k_CscParams_Bt2020Lim);
-            break;
-        }
-        case COLORSPACE_REC_601:
-            newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-            newPixelFormat = MTLPixelFormatBGRA8Unorm;
-            paramBuffer.cscParams = (fullRange ? k_CscParams_Bt601Full : k_CscParams_Bt601Lim);
+            case COLORSPACE_REC_601:
+                newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+                newPixelFormat = MTLPixelFormatBGRA8Unorm;
+                paramBuffer.cscParams = (fullRange ? k_CscParams_Bt601Full : k_CscParams_Bt601Lim);
         }
 
         // The CAMetalLayer retains the CGColorSpace
         if (newColorSpace || newPixelFormat != layer.pixelFormat) {
             *layerDidChange = YES;
             if (newColorSpace) {
-                Log(LOG_I, @"Frame colorspace %@ - changing MetalLayer's colorspace to %@",
-                    colorspace == COLORSPACE_REC_709    ? @"REC_709"
-                    : colorspace == COLORSPACE_REC_2020 ? @"REC_2020"
-                    : colorspace == COLORSPACE_REC_601  ? @"REC_601 (sRGB)"
-                    : [NSString stringWithFormat:@"Unknown: %d", colorspace],
-                    newColorSpace
-                );
+                Log(LOG_I,
+                    @"Frame colorspace %@ - changing MetalLayer's colorspace to %@",
+                    colorspace == COLORSPACE_REC_709        ? @"REC_709"
+                        : colorspace == COLORSPACE_REC_2020 ? @"REC_2020"
+                        : colorspace == COLORSPACE_REC_601  ? @"REC_601 (sRGB)"
+                                                            : [NSString stringWithFormat:@"Unknown: %d", colorspace],
+                    newColorSpace);
             }
             if (newPixelFormat != layer.pixelFormat) {
-                Log(LOG_I, @"Frame pixel format %@ - changing MetalLayer's pixel format to %@",
-                      layer.pixelFormat == MTLPixelFormatBGRA8Unorm ? @"MTLPixelFormatBGRA8Unorm"
-                    : layer.pixelFormat == MTLPixelFormatBGR10A2Unorm ? @"MTLPixelFormatBGR10A2Unorm"
-                    : [NSString stringWithFormat:@"Unknown: %lu", layer.pixelFormat],
-                      newPixelFormat == MTLPixelFormatBGRA8Unorm ? @"MTLPixelFormatBGRA8Unorm"
-                    : newPixelFormat == MTLPixelFormatBGR10A2Unorm ? @"MTLPixelFormatBGR10A2Unorm"
-                    : [NSString stringWithFormat:@"Unknown: %lu", (unsigned long)layer.pixelFormat]
-                );
+                Log(LOG_I,
+                    @"Frame pixel format %@ - changing MetalLayer's pixel format to %@",
+                    layer.pixelFormat == MTLPixelFormatBGRA8Unorm         ? @"MTLPixelFormatBGRA8Unorm"
+                        : layer.pixelFormat == MTLPixelFormatBGR10A2Unorm ? @"MTLPixelFormatBGR10A2Unorm"
+                                                                          : [NSString stringWithFormat:@"Unknown: %lu", layer.pixelFormat],
+                    newPixelFormat == MTLPixelFormatBGRA8Unorm         ? @"MTLPixelFormatBGRA8Unorm"
+                        : newPixelFormat == MTLPixelFormatBGR10A2Unorm ? @"MTLPixelFormatBGR10A2Unorm"
+                                                                       : [NSString stringWithFormat:@"Unknown: %lu", (unsigned long)layer.pixelFormat]);
             }
 #if !RENDER_ON_MAIN_THREAD
             // These can only be changed on the main thread
@@ -286,7 +268,7 @@ struct Vertex {
 
         // Create the new colorspace parameter buffer for our fragment shader
         MTLResourceOptions bufferOptions = MTLResourceStorageModeShared;
-        _CscParamsBuffer = [_device newBufferWithBytes:(void*)&paramBuffer length:sizeof(paramBuffer) options:bufferOptions];
+        _CscParamsBuffer = [_device newBufferWithBytes:(void *)&paramBuffer length:sizeof(paramBuffer) options:bufferOptions];
         if (!_CscParamsBuffer) {
             Log(LOG_E, @"Failed to create CSC parameters buffer");
             return NO;
@@ -328,25 +310,20 @@ struct Vertex {
     }
 }
 
-- (void)screenSpace:(CGRect *)src toNormalizedDeviceCoords:(CGRect *)dst withDrawableWidth:(int)viewportWidth drawableHeight:(int)viewportHeight
-{
+- (void)screenSpace:(CGRect *)src toNormalizedDeviceCoords:(CGRect *)dst withDrawableWidth:(int)viewportWidth drawableHeight:(int)viewportHeight {
     dst->origin.x = ((float)src->origin.x / (viewportWidth / 2.0f)) - 1.0f;
     dst->origin.y = ((float)src->origin.y / (viewportHeight / 2.0f)) - 1.0f;
     dst->size.width = (float)src->size.width / (viewportWidth / 2.0f);
     dst->size.height = (float)src->size.height / (viewportHeight / 2.0f);
 }
 
-- (BOOL)updateVideoRegionSizeForFrame:(Frame *)frame
-                              toLayer:(CAMetalLayer *)layer
-{
+- (BOOL)updateVideoRegionSizeForFrame:(Frame *)frame toLayer:(CAMetalLayer *)layer {
     int drawableWidth = layer.drawableSize.width;
     int drawableHeight = layer.drawableSize.height;
 
     // Check if anything has changed since the last vertex buffer upload
-    if (_VideoVertexBuffer
-        && [frame width] == _lastFrameWidth && [frame height] == _lastFrameHeight
-        && drawableWidth == _lastDrawableWidth && drawableHeight == _lastDrawableHeight
-    ) {
+    if (_VideoVertexBuffer && [frame width] == _lastFrameWidth && [frame height] == _lastFrameHeight && drawableWidth == _lastDrawableWidth &&
+        drawableHeight == _lastDrawableHeight) {
         // Nothing to do
         return YES;
     }
@@ -360,12 +337,11 @@ struct Vertex {
     CGRect renderRect;
     [self screenSpace:&dst toNormalizedDeviceCoords:&renderRect withDrawableWidth:drawableWidth drawableHeight:drawableHeight];
 
-    struct Vertex verts[] =
-    {
-        { { renderRect.origin.x, renderRect.origin.y, 0.0f, 1.0f }, { 0.0f, 1.0f } },
-        { { renderRect.origin.x, renderRect.origin.y + renderRect.size.height, 0.0f, 1.0f }, { 0.0f, 0} },
-        { { renderRect.origin.x + renderRect.size.width, renderRect.origin.y, 0.0f, 1.0f }, { 1.0f, 1.0f} },
-        { { renderRect.origin.x + renderRect.size.width, renderRect.origin.y + renderRect.size.height, 0.0f, 1.0f }, { 1.0f, 0} },
+    struct Vertex verts[] = {
+        {{renderRect.origin.x, renderRect.origin.y, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{renderRect.origin.x, renderRect.origin.y + renderRect.size.height, 0.0f, 1.0f}, {0.0f, 0}},
+        {{renderRect.origin.x + renderRect.size.width, renderRect.origin.y, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{renderRect.origin.x + renderRect.size.width, renderRect.origin.y + renderRect.size.height, 0.0f, 1.0f}, {1.0f, 0}},
     };
 
     MTLResourceOptions bufferOptions = MTLResourceStorageModeShared;
@@ -383,14 +359,11 @@ struct Vertex {
     return YES;
 }
 
-- (void)discardNextDrawable
-{
+- (void)discardNextDrawable {
     _nextDrawable = nil;
 }
 
-- (void)renderFrame:(Frame *)frame
-            toLayer:(CAMetalLayer *)layer
-{
+- (void)renderFrame:(Frame *)frame toLayer:(CAMetalLayer *)layer {
     // Handle changes to the frame's colorspace from last time we rendered
     BOOL layerDidChange = NO;
     if (![self updateColorSpaceForFrame:frame toLayer:layer layerDidChange:&layerDidChange]) {
@@ -408,36 +381,35 @@ struct Vertex {
         return;
     }
 
-    CFTimeInterval now = CACurrentMediaTime();
     FQLog(LOG_I, @"[%d / %.3f ms] Metal frame rendering", frame.frameNumber, frame.pts);
 
-//#if !TARGET_OS_TV
-//    // Experimental EDR handling based on frame metadata
-//    [self applyEDRFromFrame:frame toLayer:layer];
-//#endif
+    // #if !TARGET_OS_TV
+    //     // Experimental EDR handling based on frame metadata
+    //     [self applyEDRFromFrame:frame toLayer:layer];
+    // #endif
 
     size_t planes = CVPixelBufferGetPlaneCount(frame.pixelBuffer);
     for (size_t i = 0; i < planes; i++) {
         MTLPixelFormat fmt;
 
         switch (CVPixelBufferGetPixelFormatType(frame.pixelBuffer)) {
-        case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
-        case kCVPixelFormatType_444YpCbCr8BiPlanarVideoRange:
-        case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
-        case kCVPixelFormatType_444YpCbCr8BiPlanarFullRange:
-            fmt = (i == 0) ? MTLPixelFormatR8Unorm : MTLPixelFormatRG8Unorm;
-            break;
+            case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
+            case kCVPixelFormatType_444YpCbCr8BiPlanarVideoRange:
+            case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
+            case kCVPixelFormatType_444YpCbCr8BiPlanarFullRange:
+                fmt = (i == 0) ? MTLPixelFormatR8Unorm : MTLPixelFormatRG8Unorm;
+                break;
 
-        case kCVPixelFormatType_420YpCbCr10BiPlanarFullRange:
-        case kCVPixelFormatType_444YpCbCr10BiPlanarFullRange:
-        case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
-        case kCVPixelFormatType_444YpCbCr10BiPlanarVideoRange:
-            fmt = (i == 0) ? MTLPixelFormatR16Unorm : MTLPixelFormatRG16Unorm;
-            break;
+            case kCVPixelFormatType_420YpCbCr10BiPlanarFullRange:
+            case kCVPixelFormatType_444YpCbCr10BiPlanarFullRange:
+            case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
+            case kCVPixelFormatType_444YpCbCr10BiPlanarVideoRange:
+                fmt = (i == 0) ? MTLPixelFormatR16Unorm : MTLPixelFormatRG16Unorm;
+                break;
 
-        default:
-            Log(LOG_E, @"Unknown pixel format: %@", CVPixelBufferGetPixelFormatType(frame.pixelBuffer));
-            return;
+            default:
+                Log(LOG_E, @"Unknown pixel format: %@", CVPixelBufferGetPixelFormatType(frame.pixelBuffer));
+                return;
         }
 
         if (_cvMetalTextures[i]) {
@@ -486,13 +458,19 @@ struct Vertex {
     [renderEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
     [renderEncoder endEncoding];
 
-    dispatch_sync(_sq, ^{ self->_pendingPresentCount++; });
+    dispatch_sync(_sq, ^{
+        self->_pendingPresentCount++;
+    });
     __weak typeof(self) weakSelf = self;
     [_nextDrawable addPresentedHandler:^(id<MTLDrawable> d) {
         __strong typeof(self) self = weakSelf;
-        if (!self) return;
+        if (!self) {
+            return;
+        }
 
-        dispatch_sync(self->_sq, ^{ self->_pendingPresentCount--; });
+        dispatch_sync(self->_sq, ^{
+            self->_pendingPresentCount--;
+        });
         dispatch_semaphore_signal(self->_presentSemaphore);
 
         if (self->_lastPresented > 0) {
@@ -517,8 +495,7 @@ struct Vertex {
     _nextDrawable = nil;
 }
 
-- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer
-{
+- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer {
     if (!_nextDrawable) {
         // Wait for the next available drawable before latching the frame to render
         CFTimeInterval t0 = CACurrentMediaTime();
@@ -531,7 +508,9 @@ struct Vertex {
 
         // Pace ourselves by waiting if too many frames are pending presentation
         __block int pending = 0;
-        dispatch_sync(_sq, ^{ pending = _pendingPresentCount; });
+        dispatch_sync(_sq, ^{
+            pending = _pendingPresentCount;
+        });
         if (pending > 2) {
             CFTimeInterval t1 = CACurrentMediaTime();
             dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(100 * NSEC_PER_MSEC));
@@ -539,21 +518,18 @@ struct Vertex {
             if (result != 0) {
                 Log(LOG_W, @"Metal frames pending: %d, timeout after 100ms", pending);
             } else {
-                FQLog(LOG_I, @"Metal frames pending: %d, we waited %.3f ms for a frame to be presented",
-                      pending, (CACurrentMediaTime() - t1) * 1000.0);
+                FQLog(LOG_I, @"Metal frames pending: %d, we waited %.3f ms for a frame to be presented", pending, (CACurrentMediaTime() - t1) * 1000.0);
             }
         }
     }
 }
 
 /// Responds to the drawable's size or orientation changes.
-- (void)drawableResize:(CGSize)drawableSize
-{
+- (void)drawableResize:(CGSize)drawableSize {
     [self resize:drawableSize];
 }
 
-- (void)resize:(CGSize)size
-{
+- (void)resize:(CGSize)size {
     // TODO?
 }
 

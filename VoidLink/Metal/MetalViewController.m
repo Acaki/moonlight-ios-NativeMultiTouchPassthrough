@@ -6,12 +6,11 @@ The implementation of the cross-platform game view controller.
 */
 
 #import "MetalViewController.h"
-#import "MetalVideoRenderer.h"
 #import "FrameQueue.h"
 #import "ImGuiRenderer.h"
+#import "MetalVideoRenderer.h"
 
-@implementation MetalViewController
-{
+@implementation MetalViewController {
     /// A queue to initialize the renderer asynchronously from the main thread.
     dispatch_queue_t _dispatch_queue;
     FrameQueue *_frameQueue;
@@ -23,11 +22,7 @@ The implementation of the cross-platform game view controller.
     BOOL _stopping;
 }
 
--(nonnull instancetype)initWithFrame:(CGRect)bounds
-                           framerate:(float)framerate
-                           enableHdr:(BOOL)enableHdr
-                      metricsHandler:(MetricsHandler)metricsHandler
-{
+- (nonnull instancetype)initWithFrame:(CGRect)bounds framerate:(float)framerate enableHdr:(BOOL)enableHdr metricsHandler:(MetricsHandler)metricsHandler {
     self = [super init];
     if (self) {
         _bounds = bounds;
@@ -40,21 +35,18 @@ The implementation of the cross-platform game view controller.
     return self;
 }
 
--(void)loadView
-{
+- (void)loadView {
     self.view = [[MetalView alloc] initWithFrame:_bounds];
 }
 
-- (void)viewDidLoad
-{
+- (void)viewDidLoad {
     [super viewDidLoad];
 
     /// A queue to initialize the renderer asynchronously from the main thread.
     _dispatch_queue = dispatch_queue_create("com.moonlight.Metal", DISPATCH_QUEUE_CONCURRENT);
 
     __block MetalView *view = (MetalView *)self.view;
-    if (!view)
-    {
+    if (!view) {
         Log(LOG_E, @"The view attached to MetalViewController isn't a MetalView.");
         return;
     }
@@ -64,8 +56,7 @@ The implementation of the cross-platform game view controller.
 
     // Select the device to render with.
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    if (!device)
-    {
+    if (!device) {
         Log(LOG_E, @"Metal isn't supported on this device.");
         self.view = [[PlatformView alloc] initWithFrame:self.view.frame];
         return;
@@ -73,11 +64,10 @@ The implementation of the cross-platform game view controller.
     view.metalLayer.device = device;
 
     // Initialize the renderer.
-    MetalVideoRenderer* renderer = [[MetalVideoRenderer alloc] initWithMetalDevice:device
+    MetalVideoRenderer *renderer = [[MetalVideoRenderer alloc] initWithMetalDevice:device
                                                                drawablePixelFormat:MTLPixelFormatBGR10A2Unorm
                                                                          framerate:self->_framerate];
-    if (!renderer)
-    {
+    if (!renderer) {
         Log(LOG_E, @"The renderer couldn't be initialized.");
         return;
     }
@@ -90,8 +80,7 @@ The implementation of the cross-platform game view controller.
     self->_renderer = renderer;
 }
 
-- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer
-{
+- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer {
     if (!_stopping) {
         // Renderer obtains a nextDrawable, waiting if necessary
         FQLog(LOG_I, @"[MetalViewController] caling [_renderer waitToRenderTo:layer]");
@@ -101,12 +90,10 @@ The implementation of the cross-platform game view controller.
         FQLog(LOG_I, @"[MetalViewController] caling [_renderer waitForEnqueue]");
         [_frameQueue waitForEnqueue];
     }
-
 }
 
 /// Draw frame (used by manual loop)
-- (void)renderTo:(nonnull CAMetalLayer *)layer
-{
+- (void)renderTo:(nonnull CAMetalLayer *)layer {
     if (!_renderer) {
         return;
     }
@@ -124,27 +111,23 @@ The implementation of the cross-platform game view controller.
     [_renderer drawableResize:size];
 }
 
-
 #if TARGET_OS_IOS
 /// Hides the Home indicator button automatically.
-- (BOOL)prefersHomeIndicatorAutoHidden
-{
+- (BOOL)prefersHomeIndicatorAutoHidden {
     return YES;
 }
 #endif
 
 #if TARGET_OS_OSX
 /// Makes the view controller the first responder to receive keyboard events.
-- (void)viewDidAppear
-{
+- (void)viewDidAppear {
     [_metalView.window makeFirstResponder:self];
 }
 
 /// Receives the keydown events to avoid system beeps.
 ///
 /// The `GameInputKeyboardMouse` class handles keyboard events.
-- (void)keyDown:(NSEvent *)event
-{
+- (void)keyDown:(NSEvent *)event {
     // Reference the parameter to avoid an unused parameter warning.
     (void)(event);
 }
@@ -152,8 +135,7 @@ The implementation of the cross-platform game view controller.
 /// Receives the keyup events to avoid system beeps.
 ///
 /// The `GameInputKeyboardMouse` class handles keyboard events.
-- (void)keyUp:(NSEvent *)event
-{
+- (void)keyUp:(NSEvent *)event {
     // Reference the parameter to avoid an unused parameter warning.
     (void)(event);
 }
