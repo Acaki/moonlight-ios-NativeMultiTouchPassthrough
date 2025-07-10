@@ -36,6 +36,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Most recent value
 - (float)newestValue;
 
+/// Oldest timestamp
+- (CFTimeInterval)oldestTimestamp;
+
 /// Copies the buffer’s contents (oldest→newest) into `outBuffer`, which must be able to hold at least `self.count` floats.
 /// Returns the number of floats written (i.e. the current `count`).
 /// If non-NULL, `outMin` and `outMax` are set to the buffer’s current minimum/maximum.
@@ -51,8 +54,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Calls `block(value, timestamp)` for each value in the buffer (from oldest to newest)
 - (void)enumerateValuesWithBlock:(void (^)(float value, BOOL *stop))block;
-
-- (void)dumpToCSV:(NSString *)filePath;
 
 @end
 

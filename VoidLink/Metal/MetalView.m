@@ -7,9 +7,6 @@
 
 @implementation MetalView
 {
-    CAMetalDisplayLink *_displayLink;
-    CFTimeInterval _previousTargetPresentationTimestamp;
-
 #if !RENDER_ON_MAIN_THREAD
     // The secondary thread containing the render loop.
     NSThread *_renderThread;
@@ -62,14 +59,6 @@
 
 - (void)didMoveToWindow
 {
-    if (self.window == nil)
-    {
-        // If moving off of a window, destroy the display link.
-        [_displayLink invalidate];
-        _displayLink = nil;
-        return;
-    }
-
     [self movedToWindow];
 }
 #else
@@ -86,11 +75,7 @@
 
 - (void)movedToWindow
 {
-    [self setupCAMetalLink];
-
-#if RENDER_ON_MAIN_THREAD
-    [self startMetalLink];
-#else // IF !RENDER_ON_MAIN_THREAD
+#if !RENDER_ON_MAIN_THREAD
     // Protect _continueRunLoop with a `@synchronized` block because it's accessed by the separate
     // animation thread.
     @synchronized(self)
@@ -102,8 +87,8 @@
     // Create and start a secondary NSThread that has another run runloop. The NSThread
     // class calls the 'runThread' method at the start of the secondary thread's execution.
     _renderThread =  [[NSThread alloc] initWithTarget:self
-                      selector:@selector(runThread)
-                      object:nil];
+                                             selector:@selector(runThread)
+                                               object:nil];
     _continueRunLoop = YES;
     _renderThread.qualityOfService = NSQualityOfServiceUserInteractive;
     [_renderThread start];
@@ -127,129 +112,29 @@
 #endif
 }
 
-- (void)setupCAMetalLink
-{
-    [self stopRenderLoop];
-    [self makeMetalLink:self.metalLayer];
-
-#if TARGET_OS_OSX
-    // Register to receive a notification when the window closes so that you
-    // can stop the display link.
-    NSNotificationCenter* notificationCenter = [NSNotificationCenter defaultCenter];
-    [notificationCenter addObserver:self
-                           selector:@selector(windowWillClose:)
-                               name:NSWindowWillCloseNotification
-                             object:self.window];
-#endif
-}
-
-#if TARGET_OS_OSX
-- (void)windowWillClose:(NSNotification*)notification
-{
-    // Stop the display link when the window is closing because there's
-    // no point in drawing something that you can't display.
-    if (notification.object == self.window)
-    {
-        [self stopMetalLink];
-    }
-}
-#endif // IF TARGET_OS_OSX
-
-- (void)makeMetalLink:(nonnull CAMetalLayer *)metalLayer;
-{
-    // Create and configure the Metal display link.
-    _displayLink = [[CAMetalDisplayLink alloc] initWithMetalLayer:metalLayer];
-    if (_framerate > 0.0f) {
-        Log(LOG_I, @"CAMetalDisplayLink preferredFrameRate set to %.2f", _framerate);
-        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(_framerate, _framerate, _framerate);
-    }
-    _displayLink.preferredFrameLatency = 2.0f;
-    _displayLink.paused = NO;
-    // Assign the delegate to receive the display update callback.
-    _displayLink.delegate = self;
-}
-
-#pragma mark - Render Loop Control
-
-- (void)metalDisplayLink:(CAMetalDisplayLink *)link
-             needsUpdate:(CAMetalDisplayLinkUpdate *_Nonnull)update
-{
-    CFTimeInterval deltaTime = _previousTargetPresentationTimestamp - update.targetPresentationTimestamp;
-    _previousTargetPresentationTimestamp = update.targetPresentationTimestamp;
-
-    [self renderUpdate:update with:deltaTime];
-}
-
-- (void)startMetalLink
-{
-    _previousTargetPresentationTimestamp = CACurrentMediaTime();
-    [_displayLink addToRunLoop:[NSRunLoop currentRunLoop]
-                       forMode:NSRunLoopCommonModes];
-}
-
-- (void)stopMetalLink
-{
-    [_displayLink removeFromRunLoop:[NSRunLoop mainRunLoop]
-                            forMode:NSRunLoopCommonModes];
-    [_displayLink invalidate];
-}
-
-- (void)stopRenderLoop
-{
-    [_displayLink invalidate];
-}
-
-- (void)dealloc
-{
-    [self stopRenderLoop];
-}
-
-#if TARGET_OS_IOS || TARGET_OS_TV
-- (void)setPaused:(BOOL)paused
-{
-    _paused = paused;
-
-    _displayLink.paused = paused;
-}
-
-- (void)didEnterBackground:(NSNotification*)notification
-{
-    self.paused = YES;
-}
-
-- (void)willEnterForeground:(NSNotification*)notification
-{
-    self.paused = NO;
-}
-#endif
-
 #if !RENDER_ON_MAIN_THREAD
-- (void)runThread
-{
-    // Set the display link to the run loop of this thread so its callback occurs on this thread.
-    NSRunLoop *runLoop = [NSRunLoop currentRunLoop];
-    [self startMetalLink];
-
+- (void)runThread {
     // The system sets the '_continueRunLoop' ivar outside this thread, so it needs to synchronize. Create a
     // 'continueRunLoop' local var that the system can set from the _continueRunLoop ivar in a @synchronized block.
     BOOL continueRunLoop = YES;
 
     // Begin the run loop.
-    while (continueRunLoop)
-    {
-        // Create the autorelease pool for the current iteration of the loop.
-        @autoreleasepool
-        {
-            // Run the loop once accepting input only from the display link.
-            [runLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
-        }
+    while (continueRunLoop) {
+        @autoreleasepool {
+            [_delegate waitToRenderTo:_metalLayer];
 
-        // Synchronize this with the _continueRunLoop ivar, which is set on another thread.
-        @synchronized(self)
-        {
-            // When accessing anything outside the thread, such as the '_continueRunLoop' ivar,
-            // the system reads it inside the synchronized block to ensure it writes fully/atomically.
-            continueRunLoop = _continueRunLoop;
+            @synchronized(self) {
+                continueRunLoop = _continueRunLoop;
+            }
+            if (!continueRunLoop) {
+                break;
+            }
+
+            [_delegate renderTo:_metalLayer];
+
+            @synchronized(self) {
+                continueRunLoop = _continueRunLoop;
+            }
         }
     }
 }
@@ -344,26 +229,5 @@
 #endif
 }
 #endif // END AUTOMATICALLY_RESIZE
-
-#pragma mark - Drawing
-
-- (void)renderUpdate:(CAMetalDisplayLinkUpdate *_Nonnull)update
-                with:(CFTimeInterval)deltaTime
-{
-#if RENDER_ON_MAIN_THREAD
-    [_delegate renderTo:_metalLayer
-                   with:update
-                     at:deltaTime];
-#else
-    // You need to synchronize if rendering on the background thread to ensure resize operations from the
-    // main thread are complete before any rendering that depends on the size occurs.
-    @synchronized(_metalLayer)
-    {
-        [_delegate renderTo:_metalLayer
-                       with:update
-                         at:deltaTime];
-    }
-#endif
-}
 
 @end

@@ -75,6 +75,7 @@ struct Vertex {
 };
 
 @implementation MetalVideoRenderer {
+    dispatch_queue_t _sq;
     id<MTLDevice> _device;
     float _framerate;
     id<ConnectionCallbacks> _callbacks;
@@ -84,6 +85,7 @@ struct Vertex {
     MTLRenderPassDescriptor *_renderPassDescriptor;
     id<MTLTexture> _videoTexture;
     CVMetalTextureCacheRef _textureCache;
+    CVMetalTextureRef _cvMetalTextures[MAX_VIDEO_PLANES];
 
     int _lastColorSpace;
     BOOL _lastFullRange;
@@ -94,6 +96,8 @@ struct Vertex {
     id<MTLBuffer> _CscParamsBuffer;
     id<MTLBuffer> _VideoVertexBuffer;
     CFTimeInterval _lastPresented;
+    int _pendingPresentCount;
+    dispatch_semaphore_t _presentSemaphore;
 }
 
 - (instancetype)initWithMetalDevice:(id<MTLDevice>)device
@@ -102,8 +106,11 @@ struct Vertex {
 {
     self = [super init];
     if (self) {
-        _averageGPUTime = 1.0f / framerate;
+        _sq = dispatch_queue_create("com.moonlight.MetalVideoRenderer",
+                                     dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
+        _averageGPUTime = (1.0f / framerate) / 2;
         _device = device;
+        _nextDrawable = nil;
         _colorPixelFormat = MTLPixelFormatBGR10A2Unorm;
         _colorspace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
         _framerate = framerate;
@@ -111,8 +118,19 @@ struct Vertex {
         _lastColorSpace = -1;
         _lastFullRange = NO;
         _lastPresented = 0;
+        _pendingPresentCount = 0;
+        _presentSemaphore = dispatch_semaphore_create(0);
 
-        CVMetalTextureCacheCreate(NULL, NULL, _device, NULL, &_textureCache);
+        CFStringRef keys[1] = { kCVMetalTextureUsage };
+        NSUInteger values[1] = { MTLTextureUsageShaderRead };
+        CFDictionaryRef cacheAttributes = CFDictionaryCreate(kCFAllocatorDefault, (const void**)keys, (const void**)values, 1, NULL, NULL);
+        CVMetalTextureCacheCreate(kCFAllocatorDefault, cacheAttributes, _device, NULL, &_textureCache);
+        CFRelease(cacheAttributes);
+
+        _renderPassDescriptor = [MTLRenderPassDescriptor new];
+        _renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+        _renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
+        _renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
     }
     return self;
 }
@@ -240,7 +258,7 @@ struct Vertex {
                 );
             }
             if (newPixelFormat != layer.pixelFormat) {
-                Log(LOG_I, @"Frame pixel format %@ - changing MetalLayer's colorspace to %@",
+                Log(LOG_I, @"Frame pixel format %@ - changing MetalLayer's pixel format to %@",
                       layer.pixelFormat == MTLPixelFormatBGRA8Unorm ? @"MTLPixelFormatBGRA8Unorm"
                     : layer.pixelFormat == MTLPixelFormatBGR10A2Unorm ? @"MTLPixelFormatBGR10A2Unorm"
                     : [NSString stringWithFormat:@"Unknown: %lu", layer.pixelFormat],
@@ -365,10 +383,13 @@ struct Vertex {
     return YES;
 }
 
+- (void)discardNextDrawable
+{
+    _nextDrawable = nil;
+}
+
 - (void)renderFrame:(Frame *)frame
             toLayer:(CAMetalLayer *)layer
-               with:(CAMetalDisplayLinkUpdate *_Nonnull)update
-                 at:(CFTimeInterval)deltaTime
 {
     // Handle changes to the frame's colorspace from last time we rendered
     BOOL layerDidChange = NO;
@@ -376,8 +397,9 @@ struct Vertex {
         return;
     }
 
-    if (layerDidChange) {
+    if (layerDidChange && frame.frameNumber > 1) {
         Log(LOG_I, @"Metal frame changed layer's colorspace and/or pixel format, returning for new drawable");
+        [self discardNextDrawable];
         return;
     }
 
@@ -387,16 +409,13 @@ struct Vertex {
     }
 
     CFTimeInterval now = CACurrentMediaTime();
-    FQLog(LOG_I, @"[%d] Metal frame due in %.3f ms, for present in %.3f ms",
-          frame.frameNumber, (update.targetTimestamp - now) * 1000.0,
-          (update.targetPresentationTimestamp - update.targetTimestamp) * 1000.0);
+    FQLog(LOG_I, @"[%d / %.3f ms] Metal frame rendering", frame.frameNumber, frame.pts);
 
 //#if !TARGET_OS_TV
 //    // Experimental EDR handling based on frame metadata
 //    [self applyEDRFromFrame:frame toLayer:layer];
 //#endif
 
-    CVMetalTextureRef *cvMetalTextures = malloc(sizeof(CVMetalTextureRef) * MAX_VIDEO_PLANES);
     size_t planes = CVPixelBufferGetPlaneCount(frame.pixelBuffer);
     for (size_t i = 0; i < planes; i++) {
         MTLPixelFormat fmt;
@@ -421,6 +440,9 @@ struct Vertex {
             return;
         }
 
+        if (_cvMetalTextures[i]) {
+            CVBufferRelease(_cvMetalTextures[i]);
+        }
         CVReturn err = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
                                                                  _textureCache,
                                                                  frame.pixelBuffer,
@@ -429,30 +451,21 @@ struct Vertex {
                                                                  CVPixelBufferGetWidthOfPlane(frame.pixelBuffer, i),
                                                                  CVPixelBufferGetHeightOfPlane(frame.pixelBuffer, i),
                                                                  i,
-                                                                 &cvMetalTextures[i]);
+                                                                 &_cvMetalTextures[i]);
         if (err != kCVReturnSuccess) {
             Log(LOG_E, @"CVMetalTextureCacheCreateTextureFromImage() failed: %d", err);
             return;
         }
     }
 
-    id<CAMetalDrawable> drawable = update.drawable;
-    if (!drawable) {
-        Log(LOG_E, @"No drawable available");
-        return;
-    }
+    _renderPassDescriptor.colorAttachments[0].texture = _nextDrawable.texture;
 
-    _renderPassDescriptor = [MTLRenderPassDescriptor new];
-    _renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
-    _renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-    _renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
-    _renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_renderPassDescriptor];
 
     [renderEncoder setRenderPipelineState:_videoPipelineState];
     for (size_t i = 0; i < planes; i++) {
-        [renderEncoder setFragmentTexture:CVMetalTextureGetTexture(cvMetalTextures[i]) atIndex:i];
+        [renderEncoder setFragmentTexture:CVMetalTextureGetTexture(_cvMetalTextures[i]) atIndex:i];
     }
     [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
         const CFTimeInterval GPUTime = cb.GPUEndTime - cb.GPUStartTime;
@@ -460,11 +473,12 @@ struct Vertex {
         self->_averageGPUTime = (GPUTime * alpha) + (self->_averageGPUTime * (1.0 - alpha));
 
         // Free textures after completion of rendering per CVMetalTextureCache requirements
-        // XXX any way to reuse these buffers?
         for (size_t i = 0; i < planes; i++) {
-            CVBufferRelease(cvMetalTextures[i]);
+            CVBufferRelease(self->_cvMetalTextures[i]);
+            self->_cvMetalTextures[i] = nil;
         }
-        free(cvMetalTextures);
+
+        CVMetalTextureCacheFlush(self->_textureCache, 0);
     }];
 
     [renderEncoder setFragmentBuffer:_CscParamsBuffer offset:0 atIndex:0];
@@ -472,20 +486,64 @@ struct Vertex {
     [renderEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
     [renderEncoder endEncoding];
 
-    [drawable addPresentedHandler:^(id<MTLDrawable> d) {
-        CFTimeInterval presented = d.presentedTime;
+    dispatch_sync(_sq, ^{ self->_pendingPresentCount++; });
+    __weak typeof(self) weakSelf = self;
+    [_nextDrawable addPresentedHandler:^(id<MTLDrawable> d) {
+        __strong typeof(self) self = weakSelf;
+        if (!self) return;
+
+        dispatch_sync(self->_sq, ^{ self->_pendingPresentCount--; });
+        dispatch_semaphore_signal(self->_presentSemaphore);
+
         if (self->_lastPresented > 0) {
-            CFTimeInterval frametime = presented - self->_lastPresented;
+            CFTimeInterval frametime = d.presentedTime - self->_lastPresented;
             [[ImGuiPlots sharedInstance] observeFloat:PLOT_FRAMETIME value:(frametime * 1000.0)];
         }
-        self->_lastPresented = presented;
+        self->_lastPresented = d.presentedTime;
     }];
 
-    [commandBuffer presentDrawable:drawable];
+#if TARGET_OS_SIMULATOR
+    [commandBuffer presentDrawable:_nextDrawable];
+#else
+    // present for a minimum duration for best frame pacing
+    [commandBuffer presentDrawable:_nextDrawable afterMinimumDuration:1.0f / _framerate];
+#endif
+
     [commandBuffer commit];
 
     // Wait for the command buffer to complete and free our CVMetalTextureCache references
     [commandBuffer waitUntilCompleted];
+
+    _nextDrawable = nil;
+}
+
+- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer
+{
+    if (!_nextDrawable) {
+        // Wait for the next available drawable before latching the frame to render
+        CFTimeInterval t0 = CACurrentMediaTime();
+        _nextDrawable = [layer nextDrawable];
+        if (!_nextDrawable) {
+            Log(LOG_E, @"Error getting nextDrawable from CAMetalLayer");
+            return;
+        }
+        FQLog(LOG_I, @"Got nextDrawable (waited %.3f ms)", (CACurrentMediaTime() - t0) * 1000.0);
+
+        // Pace ourselves by waiting if too many frames are pending presentation
+        __block int pending = 0;
+        dispatch_sync(_sq, ^{ pending = _pendingPresentCount; });
+        if (pending > 2) {
+            CFTimeInterval t1 = CACurrentMediaTime();
+            dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(100 * NSEC_PER_MSEC));
+            long result = dispatch_semaphore_wait(_presentSemaphore, timeout);
+            if (result != 0) {
+                Log(LOG_W, @"Metal frames pending: %d, timeout after 100ms", pending);
+            } else {
+                FQLog(LOG_I, @"Metal frames pending: %d, we waited %.3f ms for a frame to be presented",
+                      pending, (CACurrentMediaTime() - t1) * 1000.0);
+            }
+        }
+    }
 }
 
 /// Responds to the drawable's size or orientation changes.

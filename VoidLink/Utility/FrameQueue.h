@@ -17,12 +17,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
+- (BOOL)isEmpty;
 - (void)clear;
 - (int)enqueue:(Frame *)frame;
 - (int)enqueue:(Frame *)frame withSlackSize:(int)slack;
 - (nullable Frame *)dequeue;
 - (nullable Frame *)dequeueWithTimeout:(CFTimeInterval)timeout;
 - (CFTimeInterval)estimatedFramerate;
+- (int)currentSoftCap;
+- (void)waitForEnqueue;
 
 @end
 

@@ -140,6 +140,15 @@
     return result;
 }
 
+- (CFTimeInterval)oldestTimestamp {
+    __block CFTimeInterval result;
+    dispatch_sync(_sq, ^{
+      NSUInteger tail = (_head + _capacity - _count) & (_capacity - 1);
+      result = (self->_count > 0) ? _timestamps[tail] : 0.0f;
+    });
+    return result;
+}
+
 - (int)copyValuesIntoBuffer:(float *)outBuffer min:(nullable float *)outMin max:(nullable float *)outMax {
     __block int result;
     dispatch_sync(_sq, ^{
@@ -228,21 +237,6 @@
             int idx = (tail + i) & (_capacity - 1);
             block(_buffer[idx], &stop);
         }
-    });
-}
-
-- (void)dumpToCSV:(NSString *)filePath {
-    if (!filePath) return;
-    dispatch_sync(_sq, ^{
-        if (_count == 0) return;
-        NSMutableString *output = [NSMutableString string];
-        int tail = (_head + _capacity - _count) & (_capacity - 1);
-        for (int i = 0; i < _count; i++) {
-            int idx = (tail + i) & (_capacity - 1);
-            [output appendFormat:@"%f,", _buffer[idx]];
-        }
-        [output writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
-        [UIPasteboard generalPasteboard].string = output;
     });
 }
 

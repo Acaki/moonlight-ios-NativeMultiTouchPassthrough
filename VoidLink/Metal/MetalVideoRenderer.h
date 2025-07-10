@@ -10,10 +10,9 @@
                         drawablePixelFormat:(MTLPixelFormat)drawablePixelFormat
                                   framerate:(float)framerate;
 
-- (void)renderFrame:(nonnull Frame *)frame
-            toLayer:(nonnull CAMetalLayer *)layer
-               with:(CAMetalDisplayLinkUpdate *_Nonnull)update
-                 at:(CFTimeInterval)deltaTime;
+- (void)renderFrame:(nonnull Frame *)frame toLayer:(nonnull CAMetalLayer *)layer;
+
+- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer;
 
 /// Responds to the drawable's size or orientation changes.
 - (void)drawableResize:(CGSize)drawableSize;
@@ -22,5 +21,6 @@
 @property (nonatomic) NSUInteger sampleCount;
 @property (nonatomic) MTLPixelFormat colorPixelFormat;
 @property (nonatomic, nonnull) CGColorSpaceRef colorspace;
+@property (nonatomic) id<CAMetalDrawable> _Nullable nextDrawable;
 
 @end

@@ -20,6 +20,7 @@ The implementation of the cross-platform game view controller.
     MetalView *_metalView;
     MetalVideoRenderer *_renderer;
     MetricsHandler _metricsHandler;
+    BOOL _stopping;
 }
 
 -(nonnull instancetype)initWithFrame:(CGRect)bounds
@@ -34,6 +35,7 @@ The implementation of the cross-platform game view controller.
         _framerate = framerate;
         _enableHdr = enableHdr;
         _metricsHandler = metricsHandler;
+        _stopping = NO;
     }
     return self;
 }
@@ -83,34 +85,38 @@ The implementation of the cross-platform game view controller.
     // Initialize the renderer-dependent view properties.
     view.metalLayer.pixelFormat = renderer.colorPixelFormat;
     view.metalLayer.colorspace = renderer.colorspace;
+    view.metalLayer.maximumDrawableCount = 3;
 
     self->_renderer = renderer;
 }
 
-/// Draws the graphics frame.
+- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer
+{
+    if (!_stopping) {
+        // Renderer obtains a nextDrawable, waiting if necessary
+        FQLog(LOG_I, @"[MetalViewController] caling [_renderer waitToRenderTo:layer]");
+        [_renderer waitToRenderTo:layer];
+
+        // If we don't have a frame yet, wait on that too
+        FQLog(LOG_I, @"[MetalViewController] caling [_renderer waitForEnqueue]");
+        [_frameQueue waitForEnqueue];
+    }
+
+}
+
+/// Draw frame (used by manual loop)
 - (void)renderTo:(nonnull CAMetalLayer *)layer
-            with:(CAMetalDisplayLinkUpdate *_Nonnull)update
-              at:(CFTimeInterval)deltaTime
 {
     if (!_renderer) {
         return;
     }
 
-    CFTimeInterval now = CACurrentMediaTime();
-    CFTimeInterval deadline = update.targetTimestamp;
-
-    CFTimeInterval timeout = deadline - now - _renderer.averageGPUTime;
-    if (now > deadline || timeout < 0.0f) {
-        Log(LOG_W, @"Metal renderTo was called late: missed deadline by %.3f ms", (now - deadline) * 1000.0);
-        timeout = 0.0f;
-    }
-
+    CFTimeInterval timeout = (1.0f / _framerate) - _renderer.averageGPUTime;
+    FQLog(LOG_I, @"[MetalViewController] caling [_frameQueue dequeueWithTimeout:%f]", timeout);
     Frame *frame = [_frameQueue dequeueWithTimeout:timeout];
     if (frame) {
-        [_renderer renderFrame:frame
-                       toLayer:layer
-                          with:update
-                            at:deltaTime];
+        FQLog(LOG_I, @"[MetalViewController] calling [_renderer renderFrame] %@", frame);
+        [_renderer renderFrame:frame toLayer:layer];
     }
 }
 

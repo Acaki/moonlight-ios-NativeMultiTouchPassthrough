@@ -16,14 +16,14 @@
 
 - (void)drawableResize:(CGSize)size;
 
-- (void)renderTo:(nonnull CAMetalLayer *)metalLayer
-            with:(CAMetalDisplayLinkUpdate *_Nonnull)update
-              at:(CFTimeInterval)deltaTime;
+- (void)renderTo:(nonnull CAMetalLayer *)layer;
+
+- (void)waitToRenderTo:(nonnull CAMetalLayer *)layer;
 
 @end
 
 // The Metal game view base class.
-@interface MetalView : PlatformView <CALayerDelegate, CAMetalDisplayLinkDelegate>
+@interface MetalView : PlatformView <CALayerDelegate>
 
 @property(nonatomic, nonnull, readonly) CAMetalLayer *metalLayer;
 
@@ -38,10 +38,5 @@
 #if AUTOMATICALLY_RESIZE
 - (void)resizeDrawable:(CGFloat)scaleFactor;
 #endif
-
-- (void)stopRenderLoop;
-
-- (void)renderUpdate:(CAMetalDisplayLinkUpdate *_Nonnull)update
-                with:(CFTimeInterval)deltaTime;
 
 @end

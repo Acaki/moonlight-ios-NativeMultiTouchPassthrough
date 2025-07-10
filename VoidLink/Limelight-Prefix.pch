@@ -22,7 +22,7 @@
 #import <CoreData/CoreData.h>
 
 #if !defined(NDEBUG)
-# define FRAME_QUEUE_VERBOSE
+// # define FRAME_QUEUE_VERBOSE
 #endif
 #import "Logger.h"
 #endif

@@ -6,6 +6,7 @@
 #import "Logger.h"
 #import "FloatBuffer.h"
 #import "FrameQueue.h"
+#import "ImGuiPlots.h"
 
 @implementation FrameQueue {
     NSMutableArray<id> *_buffer;
@@ -20,7 +21,9 @@
     os_unfair_lock _lock;
 
     FloatBuffer *_queueSizeHistory;
-    CFTimeInterval _lastHWMAdjustTime;
+    int _currentSoftCap;
+    dispatch_queue_t _sq;
+    dispatch_semaphore_t _frameSemaphore;
 }
 
 + (instancetype)sharedInstance {
@@ -56,7 +59,6 @@
         _maxCapacity       = 15;
         _ptsCorrection     = CMTimeMake(0, 90000);
         _queueSizeHistory  = [[FloatBuffer alloc] initWithCapacity:64];
-        _lastHWMAdjustTime = CACurrentMediaTime();
         _lock              = OS_UNFAIR_LOCK_INIT;
 
 	    // ring buffer
@@ -66,6 +68,10 @@
             [_buffer addObject:[NSNull null]];
         }
         _head = _tail = _count = 0;
+
+        _sq = dispatch_queue_create("com.moonlight.FrameQueue",
+            dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
+        _frameSemaphore = dispatch_semaphore_create(0);
 
         // ping estimatedFramerate to set initial last value
         [self estimatedFramerate];
@@ -78,6 +84,11 @@
     [_buffer replaceObjectAtIndex:_tail withObject:frame];
     _tail = (_tail + 1) % _capacity;
     _count++;
+
+    // I think it's ok to signal the cond from within the unfair lock, the render
+    // loop will just end up waiting on it in a call to dequeue.
+    dispatch_semaphore_signal(_frameSemaphore);
+
 	FQLog(LOG_I, @"[-> %@ %d / %f] enqueue frame, queue size %d / %d",
 		frame.frameType == FRAME_TYPE_IDR ? @"IDR" : @"P",
 		frame.frameNumber, frame.pts, _count, _highWaterMark);
@@ -151,6 +162,9 @@
     // for estimatedFramerate purposes
     _framesIn++;
     [_frameDropMetrics addValue:(float)dropCount];
+
+    // Stats displays the soft cap
+    _currentSoftCap = frameDropTarget;
     return dropCount;
 }
 
@@ -165,6 +179,7 @@
 // enqueue that is a bit more flexixble, using the same 500ms queue size history method as moonlight-qt.
 - (int)enqueue:(Frame *)frame withSlackSize:(int)slack {
     os_unfair_lock_lock(&_lock);
+    CFTimeInterval now = CACurrentMediaTime();
 
     // new data point for queue health
     [_queueSizeHistory addValue:(float)_count];
@@ -172,23 +187,48 @@
     // The "target" initially starts as the size of the buffer chosen by the user. 1-5 default 2. We drop a frame
     // when the queue size exceeds this amount.
     int frameDropTarget = _highWaterMark;
-    if (_queueSizeHistory.minValue < 1.0f) {
-        // If the queue has cleared out at least once in the past history period, be more lenient about dropping frames.
-        frameDropTarget += slack;
-//        FQLog(LOG_I, @"allowing frameDropTarget of %d (history %.0f/%.0f/%.2f)", frameDropTarget,
-//            _queueSizeHistory.minValue, _queueSizeHistory.maxValue, _queueSizeHistory.averageValue);
-    } else if (_queueSizeHistory.minValue == _queueSizeHistory.maxValue) {
-        // If the queue has been in the same state for the entire period, it's possible to get stuck there for a while.
-        // Lower the FDT by 1 to force a frame to be dropped and hopefully unstick things.
-        FQLog(LOG_I, @"queue stuck at %.0f, forcing a drop", _queueSizeHistory.minValue);
-        frameDropTarget--;
-    }
+
+//    CFTimeInterval t0 = [_queueSizeHistory oldestTimestamp];
+//    if (now - t0 > 0.5f) {
+//        // Get the current drop percentage over the past 512 frames
+//        // TODO: design a better API e.g. [ImGuiPlots PLOT_DROPPED].
+//        float dropRate = [[ImGuiPlots sharedInstance].plots[PLOT_DROPPED].buffer averageValue];
+//        if (dropRate > 0.25f) {
+//            FQLog(LOG_I, @"queue is dropping at %.2f%%, forcing a drop", dropRate * 100.0);
+//            frameDropTarget--;
+//        } else if (_queueSizeHistory.minValue > 0 && _queueSizeHistory.minValue == _queueSizeHistory.maxValue) {
+//            // If the queue has been in the same state for the entire period, it's possible to get stuck there for a while.
+//            // Lower the FDT by 1 to force a frame to be dropped and hopefully unstick things.
+//            FQLog(LOG_I, @"queue stuck at %.0f, forcing a drop", _queueSizeHistory.minValue);
+//            frameDropTarget--;
+//        } else if (_queueSizeHistory.minValue < 1.0f) {
+//            // If the queue has cleared out at least once in the past history period, be more lenient about dropping frames.
+//            frameDropTarget += slack;
+//            //        FQLog(LOG_I, @"allowing frameDropTarget of %d (history %.0f/%.0f/%.2f)", frameDropTarget,
+//            //            _queueSizeHistory.minValue, _queueSizeHistory.maxValue, _queueSizeHistory.averageValue);
+//        }
+//
+//        // TODO: New logic
+//        // Use timestamps, check initial interval is long enough
+//        // Smarter when checking min==max, a steady state can be fine if no frames are being dropped
+//        //   If min==max && frame drops are >= 25%, force a drop
+//        //   Maybe only look at >= 25%.
+//        // Test condition variables, manual present, no displaylink
+//    }
 
     // original enqueue logic still applies if we're full
     int dropCount = [self _unsafeEnqueue:frame withDropTarget:frameDropTarget];
 
     os_unfair_lock_unlock(&_lock);
     return dropCount;
+}
+
+// Allows the render loop to wait if the queue is empty
+- (void)waitForEnqueue {
+    while ([self isEmpty]) {
+        FQLog(LOG_I, @"waitForEnqueue...");
+        long result = dispatch_semaphore_wait(_frameSemaphore, DISPATCH_TIME_FOREVER);
+    }
 }
 
 - (Frame *)dequeue {
@@ -238,6 +278,10 @@
     return c;
 }
 
+- (BOOL)isEmpty {
+    return [self count] == 0;
+}
+
 - (void)clear {
     os_unfair_lock_lock(&_lock);
     _head = _tail = _count = 0;
@@ -266,6 +310,13 @@
     CFTimeInterval fps = [self _unsafeEstimatedFramerate];
     os_unfair_lock_unlock(&_lock);
     return fps;
+}
+
+- (int)currentSoftCap {
+    os_unfair_lock_lock(&_lock);
+    int cap = _currentSoftCap;
+    os_unfair_lock_unlock(&_lock);
+    return cap;
 }
 
 // For use with NSLog("%@", franeQueue);

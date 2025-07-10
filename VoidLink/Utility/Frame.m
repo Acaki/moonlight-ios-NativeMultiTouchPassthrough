@@ -55,9 +55,11 @@
 
     if (_formatDesc) {
         CFRelease(_formatDesc);
+        _formatDesc = nil;
     }
     if (_formatDescExt) {
         CFRelease(_formatDescExt);
+        _formatDescExt = nil;
     }
     if (_pixelBuffer) {
         CVPixelBufferRelease(_pixelBuffer);

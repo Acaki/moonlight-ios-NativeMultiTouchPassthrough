@@ -188,9 +188,9 @@
     double peakVideoMbps = [_connection getBwTracker].peakMbps;
 
     return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\n"
-            "Bitrate: %.1f Mbps, Peak: %.1f\n"
+            "Bitrate: %.1f Mbps, Peak: %.1f, Renderer: %@\n"
             "%@"
-            "Frames buffered: %.1f, Renderer: %@\n"
+            "Frames buffered: %.1f, soft cap: %d\n"
             "Frames dropped by network/pacing jitter: %.1f%% / %.1f%%\n"
             "Average network latency: %@\n"
             "Decode time: %.2f/%.2f/%.2f ms",
@@ -198,9 +198,9 @@
             _config.height,
             fps,
             [_connection getActiveCodecName],
-            avgVideoMbps, peakVideoMbps,
+            avgVideoMbps, peakVideoMbps, (stats.renderingBackend == RENDER_METAL) ? @"Metal" : @"AVSampleBuffer",
             hostProcessingString,
-            stats.frameQueueMetrics.avg, (stats.renderingBackend == RENDER_METAL) ? @"Metal" : @"AVSampleBuffer",
+            stats.frameQueueMetrics.avg, [[FrameQueue sharedInstance] currentSoftCap],
             (stats.networkDroppedFrames / stats.totalFrames) * 100.0,
             stats.frameDropMetrics.nsamples > 0 ? (stats.frameDropMetrics.total / stats.frameDropMetrics.nsamples) * 100.0 : 0.0f,
             latencyString,
