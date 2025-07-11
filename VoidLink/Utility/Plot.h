@@ -8,7 +8,6 @@ typedef enum {
     PLOT_HOST_FRAMETIME,
     PLOT_QUEUED_FRAMES,
     PLOT_DROPPED,
-    PLOT_LATE,
 
     PLOT_DECODE,
     PlotCount

@@ -834,7 +834,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         _decompressionSession, sampleBuffer, 0, NULL,
         ^(OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef _Nullable imageBuffer, CMTime pts, CMTime duration) {
             CVPixelBufferRef pixelBuffer = CVPixelBufferRetain((CVPixelBufferRef)imageBuffer);
-            //Log(LOG_D, @"Decoded to PixelBuffer %@", pixelBuffer); // dumps full frame details
+            Log(LOG_D, @"Decoded to PixelBuffer %@", pixelBuffer); // dumps full frame details
 
             // Dispatch onto our higher priority queue
             dispatch_async(self->_vtq, ^{
@@ -843,7 +843,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                                                          frameType:frameType
                                                                pts:pts];
                 [frame setFormatDesc:self->_formatDesc];
-                int framesDropped = [self->_frameQueue enqueue:frame];
+                int framesDropped = [self->_frameQueue enqueue:frame withSlackSize:3];
 
                 static PlotMetrics frameQueueMetrics = {};
                 [self->_callbacks observeFloatReturnMetrics:PLOT_QUEUED_FRAMES value:[self->_frameQueue count] plotMetrics:&frameQueueMetrics];

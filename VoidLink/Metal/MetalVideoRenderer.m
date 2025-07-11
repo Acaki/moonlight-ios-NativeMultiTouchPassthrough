@@ -70,6 +70,8 @@ struct Vertex {
     vector_float2 texCoord;
 };
 
+static const NSUInteger MaxFramesInFlight = 3;
+
 @implementation MetalVideoRenderer {
     dispatch_queue_t _sq;
     id<MTLDevice> _device;
@@ -92,8 +94,9 @@ struct Vertex {
     id<MTLBuffer> _CscParamsBuffer;
     id<MTLBuffer> _VideoVertexBuffer;
     CFTimeInterval _lastPresented;
-    int _pendingPresentCount;
-    dispatch_semaphore_t _presentSemaphore;
+
+    // https://developer.apple.com/documentation/metal/synchronizing-cpu-and-gpu-work?language=objc
+    dispatch_semaphore_t _inFlightSemaphore;
 }
 
 - (instancetype)initWithMetalDevice:(id<MTLDevice>)device drawablePixelFormat:(MTLPixelFormat)drawablePixelFormat framerate:(float)framerate {
@@ -111,8 +114,7 @@ struct Vertex {
         _lastColorSpace = -1;
         _lastFullRange = NO;
         _lastPresented = 0;
-        _pendingPresentCount = 0;
-        _presentSemaphore = dispatch_semaphore_create(0);
+        _inFlightSemaphore = dispatch_semaphore_create(MaxFramesInFlight);
 
         CFStringRef keys[1] = {kCVMetalTextureUsage};
         NSUInteger values[1] = {MTLTextureUsageShaderRead};
@@ -132,16 +134,16 @@ struct Vertex {
 - (void)applyEDRFromFrame:(Frame *)frame toLayer:(CAMetalLayer *)layer {
     CFDictionaryRef ext = [frame getFormatDescExtensions];
 
-    FQLog(LOG_I, @"ext: %@", ext);
+    Log(LOG_I, @"ext: %@", ext);
 
     CFDataRef masteringData = CFDictionaryGetValue(ext, kCMFormatDescriptionExtension_MasteringDisplayColorVolume);
     CFDataRef contentDataRef = CFDictionaryGetValue(ext, kCMFormatDescriptionExtension_ContentLightLevelInfo);
 
     if (masteringData) {
-        FQLog(LOG_I, @"ext MDCV %@", masteringData);
+        Log(LOG_I, @"ext MDCV %@", masteringData);
     }
     if (contentDataRef) {
-        FQLog(LOG_I, @"ext CLLI %@", contentDataRef);
+        Log(LOG_I, @"ext CLLI %@", contentDataRef);
     }
 
     if (masteringData && CFDataGetLength(masteringData) == 24 && contentDataRef && CFDataGetLength(contentDataRef) == 4) {
@@ -156,7 +158,7 @@ struct Vertex {
 
         layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithDisplayInfo:displayData contentInfo:contentData opticalOutputScale:100.0f];
 
-        FQLog(LOG_I, @"EDRMetadata set from MDCV %@ and CLLI %@", displayData, contentData);
+        Log(LOG_I, @"EDRMetadata set from MDCV %@ and CLLI %@", displayData, contentData);
     } else {
         layer.wantsExtendedDynamicRangeContent = YES;
         layer.pixelFormat = MTLPixelFormatRGBA16Float;
@@ -165,6 +167,8 @@ struct Vertex {
         layer.colorspace = colorspace;
 
         layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithMinLuminance:0.0005f maxLuminance:1000.0f opticalOutputScale:100.0f];
+
+        Log(LOG_I, @"EDRMetadata set for 1000 nits");
     }
 }
 #endif
@@ -274,22 +278,6 @@ struct Vertex {
             return NO;
         }
 
-        size_t planes = CVPixelBufferGetPlaneCount(frame.pixelBuffer);
-        assert(planes == 2 || planes == 3);
-
-        MTLRenderPipelineDescriptor *pipelineDesc = [MTLRenderPipelineDescriptor new];
-        id<MTLLibrary> defaultLibrary = [_device newDefaultLibrary];
-        pipelineDesc.vertexFunction = [defaultLibrary newFunctionWithName:@"vs_draw"];
-        pipelineDesc.fragmentFunction = [defaultLibrary newFunctionWithName:planes == 2 ? @"ps_draw_biplanar" : @"ps_draw_triplanar"];
-        pipelineDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
-
-        NSError *error = nil;
-        _videoPipelineState = [_device newRenderPipelineStateWithDescriptor:pipelineDesc error:&error];
-        if (!_videoPipelineState) {
-            Log(LOG_E, @"Failed to create video pipeline state: %@", error);
-            return NO;
-        }
-
         _lastColorSpace = colorspace;
         _lastFullRange = fullRange;
     }
@@ -383,12 +371,28 @@ struct Vertex {
 
     FQLog(LOG_I, @"[%d / %.3f ms] Metal frame rendering", frame.frameNumber, frame.pts);
 
-    // #if !TARGET_OS_TV
-    //     // Experimental EDR handling based on frame metadata
-    //     [self applyEDRFromFrame:frame toLayer:layer];
-    // #endif
+#if !TARGET_OS_TV
+    // Experimental EDR handling based on frame metadata
+    //[self applyEDRFromFrame:frame toLayer:layer];
+#endif
 
     size_t planes = CVPixelBufferGetPlaneCount(frame.pixelBuffer);
+    assert(planes == 2 || planes == 3);
+
+    MTLRenderPipelineDescriptor *pipelineDesc = [MTLRenderPipelineDescriptor new];
+    id<MTLLibrary> defaultLibrary = [_device newDefaultLibrary];
+    pipelineDesc.vertexFunction = [defaultLibrary newFunctionWithName:@"vs_draw"];
+    pipelineDesc.fragmentFunction = [defaultLibrary newFunctionWithName:planes == 2 ? @"ps_draw_biplanar" : @"ps_draw_triplanar"];
+    pipelineDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
+    pipelineDesc.vertexBuffers[0].mutability = MTLMutabilityImmutable;
+
+    NSError *error = nil;
+    _videoPipelineState = [_device newRenderPipelineStateWithDescriptor:pipelineDesc error:&error];
+    if (!_videoPipelineState) {
+        Log(LOG_E, @"Failed to create video pipeline state: %@", error);
+        return;
+    }
+
     for (size_t i = 0; i < planes; i++) {
         MTLPixelFormat fmt;
 
@@ -458,26 +462,16 @@ struct Vertex {
     [renderEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
     [renderEncoder endEncoding];
 
-    dispatch_sync(_sq, ^{
-        self->_pendingPresentCount++;
-    });
-    __weak typeof(self) weakSelf = self;
+    __block dispatch_semaphore_t block_semaphore = _inFlightSemaphore;
+    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
+        dispatch_semaphore_signal(block_semaphore);
+    }];
+
+    __weak typeof(self) self_ = self;
     [_nextDrawable addPresentedHandler:^(id<MTLDrawable> d) {
-        __strong typeof(self) self = weakSelf;
-        if (!self) {
-            return;
+        if (self_) {
+            [self_ plotFrametime:d.presentedTime];
         }
-
-        dispatch_sync(self->_sq, ^{
-            self->_pendingPresentCount--;
-        });
-        dispatch_semaphore_signal(self->_presentSemaphore);
-
-        if (self->_lastPresented > 0) {
-            CFTimeInterval frametime = d.presentedTime - self->_lastPresented;
-            [[ImGuiPlots sharedInstance] observeFloat:PLOT_FRAMETIME value:(frametime * 1000.0)];
-        }
-        self->_lastPresented = d.presentedTime;
     }];
 
 #if TARGET_OS_SIMULATOR
@@ -495,32 +489,26 @@ struct Vertex {
     _nextDrawable = nil;
 }
 
+- (void)plotFrametime:(CFTimeInterval)presentedTime {
+    if (_lastPresented > 0) {
+        CFTimeInterval frametime = presentedTime - _lastPresented;
+        [[ImGuiPlots sharedInstance] observeFloat:PLOT_FRAMETIME value:(frametime * 1000.0)];
+    }
+    _lastPresented = presentedTime;
+}
+
 - (void)waitToRenderTo:(nonnull CAMetalLayer *)layer {
     if (!_nextDrawable) {
-        // Wait for the next available drawable before latching the frame to render
-        CFTimeInterval t0 = CACurrentMediaTime();
+        // Wait for the next available drawable
         _nextDrawable = [layer nextDrawable];
         if (!_nextDrawable) {
             Log(LOG_E, @"Error getting nextDrawable from CAMetalLayer");
             return;
         }
-        FQLog(LOG_I, @"Got nextDrawable (waited %.3f ms)", (CACurrentMediaTime() - t0) * 1000.0);
 
-        // Pace ourselves by waiting if too many frames are pending presentation
-        __block int pending = 0;
-        dispatch_sync(_sq, ^{
-            pending = _pendingPresentCount;
-        });
-        if (pending > 2) {
-            CFTimeInterval t1 = CACurrentMediaTime();
-            dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(100 * NSEC_PER_MSEC));
-            long result = dispatch_semaphore_wait(_presentSemaphore, timeout);
-            if (result != 0) {
-                Log(LOG_W, @"Metal frames pending: %d, timeout after 100ms", pending);
-            } else {
-                FQLog(LOG_I, @"Metal frames pending: %d, we waited %.3f ms for a frame to be presented", pending, (CACurrentMediaTime() - t1) * 1000.0);
-            }
-        }
+        // Wait to ensure only `MaxFramesInFlight` number of frames are getting processed
+        // by any stage in the Metal pipeline (CPU, GPU, Metal, Drivers, etc.).
+        dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
     }
 }
 

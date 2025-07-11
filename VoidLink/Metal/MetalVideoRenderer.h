@@ -18,5 +18,6 @@
 - (void)renderFrame:(nonnull Frame *)frame toLayer:(nonnull CAMetalLayer *)layer;
 - (void)waitToRenderTo:(nonnull CAMetalLayer *)layer;
 - (void)drawableResize:(CGSize)drawableSize;
+- (void)plotFrametime:(CFTimeInterval)presentedTime;
 
 @end

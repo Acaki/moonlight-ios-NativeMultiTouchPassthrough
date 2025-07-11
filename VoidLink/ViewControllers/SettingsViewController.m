@@ -171,24 +171,8 @@ BOOL isCustomResolution(CGSize res) {
 
     // Customize framerate list for ProMotion devices
     if ([[UIScreen mainScreen] maximumFramesPerSecond] >= 90) {
-        UIDevice *device = [UIDevice currentDevice];
-        if (device.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
-            // iPad with ProMotion, available refresh rates are 120, 60, 40, 30, 24
-            [self.framerateSelector setEnabled:NO forSegmentAtIndex:2]; // disable 90fps
-            [self.framerateSelector setEnabled:YES forSegmentAtIndex:3]; // enable 120
-        }
-        else if (device.userInterfaceIdiom == UIUserInterfaceIdiomPhone) {
-            // iPhone with ProMotion, they usually have 120, 80, 60, 48, 40, 30, 24, and lower
-            [self.framerateSelector setTitle:@"80 FPS" forSegmentAtIndex:2]; // change 90 to 80
-            [self.framerateSelector setEnabled:YES forSegmentAtIndex:2]; // enable 80
-            [self.framerateSelector setEnabled:YES forSegmentAtIndex:3]; // enable 120
-        }
-        else if (@available(iOS 17.0, *)) {
-            if (device.userInterfaceIdiom == UIUserInterfaceIdiomVision) {
-                // Vision Pro supports 90, 96, 100
-                [self.framerateSelector setTitle:@"100 FPS" forSegmentAtIndex:3]; // change 120 to 100
-            }
-        }
+        [self.framerateSelector setEnabled:YES forSegmentAtIndex:2]; // enable 90
+        [self.framerateSelector setEnabled:YES forSegmentAtIndex:3]; // enable 120
     }
 
     NSInteger framerate;
@@ -500,30 +484,15 @@ BOOL isCustomResolution(CGSize res) {
 }
 
 - (NSInteger) getChosenFrameRate {
-    int fpsSegment2 = 90;
-    int fpsSegment3 = 120;
-
-    if ([[UIScreen mainScreen] maximumFramesPerSecond] >= 90) {
-        UIDevice *device = [UIDevice currentDevice];
-        if (device.userInterfaceIdiom == UIUserInterfaceIdiomPhone) {
-            fpsSegment2 = 80; // change 90 to 80
-        }
-        else if (@available(iOS 17.0, *)) {
-            if (device.userInterfaceIdiom == UIUserInterfaceIdiomVision) {
-                fpsSegment3 = 100; // change 120 to 100
-            }
-        }
-    }
-
     switch ([self.framerateSelector selectedSegmentIndex]) {
         case 0:
             return 30;
         case 1:
             return 60;
         case 2:
-            return fpsSegment2;
+            return 90;
         case 3:
-            return fpsSegment3;
+            return 120;
         default:
             abort();
     }

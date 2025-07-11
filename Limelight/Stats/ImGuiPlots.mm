@@ -68,16 +68,6 @@
             .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
         };
 
-        _plots[PLOT_LATE] = {
-            .title     = "Late callbacks",
-            .side      = PLOT_RIGHT,
-            .labelType = PLOT_LABEL_MIN_MAX_AVG,
-            .unit      = "ms",
-            //        .scaleMin  = 10.0f,
-            //        .scaleMax  = 35.0f,
-            .buffer    = [[FloatBuffer alloc] initWithCapacity:512]
-        };
-
         // not graphed, but used for stats
 
         _plots[PLOT_DECODE] = {
