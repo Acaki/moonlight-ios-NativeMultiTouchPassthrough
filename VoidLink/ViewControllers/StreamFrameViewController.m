@@ -257,7 +257,6 @@
 
     if ([_settings.renderingBackend intValue] == RENDER_METAL) {
         // Metal view for video
-        // TODO: refactor the way things access observeFloat for stats
         self.metalViewController = [[MetalViewController alloc] initWithFrame:self.view.bounds
                                                                     framerate:[self->_settings.framerate floatValue]
                                                                     enableHdr:self->_settings.enableHdr
@@ -763,14 +762,6 @@
 - (void) videoContentShown {
     [_spinner stopAnimating];
     [self.view setBackgroundColor:[UIColor blackColor]];
-}
-
-- (void) observeFloat:(int)plotId value:(CFTimeInterval)value {
-    [self.imguiView observeFloat:plotId value:value];
-}
-
-- (void) observeFloatReturnMetrics:(int)plotId value:(CFTimeInterval)value plotMetrics:(PlotMetrics *)plotMetrics {
-    return [self.imguiView observeFloatReturnMetrics:plotId value:value plotMetrics:plotMetrics];
 }
 
 - (void)didReceiveMemoryWarning
