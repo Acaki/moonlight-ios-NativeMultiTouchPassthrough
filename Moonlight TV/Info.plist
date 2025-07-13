@@ -48,7 +48,11 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Moonlight uses the local network to connect to your gaming PC for streaming.</string>
+	<key>AVGameBypassSystemSpatialAudio</key>
+	<true/>
 	<key>UIDesignRequiresCompatibility</key>
+	<true/>
+	<key>LSSupportsGameMode</key>
 	<true/>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
