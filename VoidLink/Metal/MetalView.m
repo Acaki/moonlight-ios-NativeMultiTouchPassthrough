@@ -73,6 +73,7 @@
     // class calls the 'runThread' method at the start of the secondary thread's execution.
     _renderThread = [[NSThread alloc] initWithTarget:self selector:@selector(runThread) object:nil];
     _continueRunLoop = YES;
+    _renderThread.name = @"MetalVideoRenderer";
     _renderThread.qualityOfService = NSQualityOfServiceUserInteractive;
     [_renderThread start];
 

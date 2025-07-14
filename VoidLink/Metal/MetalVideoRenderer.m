@@ -106,7 +106,6 @@ static const NSUInteger MaxFramesInFlight = 3;
                                     dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
         _averageGPUTime = (1.0f / framerate) / 2;
         _device = device;
-        _nextDrawable = nil;
         _colorPixelFormat = MTLPixelFormatBGR10A2Unorm;
         _colorspace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
         _framerate = framerate;
@@ -351,10 +350,6 @@ static const NSUInteger MaxFramesInFlight = 3;
     return YES;
 }
 
-- (void)discardNextDrawable {
-    _nextDrawable = nil;
-}
-
 - (void)renderFrame:(Frame *)frame toLayer:(CAMetalLayer *)layer
 { @autoreleasepool {
     // Handle changes to the frame's colorspace from last time we rendered
@@ -365,8 +360,8 @@ static const NSUInteger MaxFramesInFlight = 3;
 
     if (layerDidChange && frame.frameNumber > 1) {
         Log(LOG_I, @"Metal frame changed layer's colorspace and/or pixel format, returning for new drawable");
-        [self discardNextDrawable];
-        return;
+        // XXX shouldn't be necessary since nextDrawable has been moved further down
+        //return;
     }
 
     // Handle changes to the video size or drawable size
@@ -439,15 +434,12 @@ static const NSUInteger MaxFramesInFlight = 3;
         }
     }
 
-    if (!_nextDrawable) {
-        Log(LOG_E, @"Lost nextDrawable, trying to get a new one");
-        _nextDrawable = [layer nextDrawable];
-        if (!_nextDrawable) {
-            Log(LOG_E, @"Failed to get nextDrawable");
-            return;
-        }
+    id<CAMetalDrawable> drawable = [layer nextDrawable];
+    if (!drawable) {
+        Log(LOG_E, @"Failed to get nextDrawable");
+        return;
     }
-    _renderPassDescriptor.colorAttachments[0].texture = _nextDrawable.texture;
+    _renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
 
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
     id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_renderPassDescriptor];
@@ -482,25 +474,23 @@ static const NSUInteger MaxFramesInFlight = 3;
     [renderEncoder endEncoding];
 
     __weak typeof(self) self_ = self;
-    [_nextDrawable addPresentedHandler:^(id<MTLDrawable> d) {
+    [drawable addPresentedHandler:^(id<MTLDrawable> d) {
         if (self_) {
             [self_ plotFrametime:d.presentedTime];
         }
     }];
 
 #if TARGET_OS_SIMULATOR
-    [commandBuffer presentDrawable:_nextDrawable];
+    [commandBuffer presentDrawable:drawable];
 #else
     // present for a minimum duration for best frame pacing
-    [commandBuffer presentDrawable:_nextDrawable afterMinimumDuration:1.0f / _framerate];
+    [commandBuffer presentDrawable:drawable afterMinimumDuration:1.0f / _framerate];
 #endif
 
     [commandBuffer commit];
 
     // Wait for the command buffer to complete and free our CVMetalTextureCache references
     [commandBuffer waitUntilCompleted];
-
-    _nextDrawable = nil;
 } }
 
 - (void)plotFrametime:(CFTimeInterval)presentedTime {
@@ -512,18 +502,9 @@ static const NSUInteger MaxFramesInFlight = 3;
 }
 
 - (void)waitToRenderTo:(nonnull CAMetalLayer *)layer {
-    if (!_nextDrawable) {
-        // Wait for the next available drawable
-        _nextDrawable = [layer nextDrawable];
-        if (!_nextDrawable) {
-            Log(LOG_E, @"Error getting nextDrawable from CAMetalLayer");
-            return;
-        }
-
-        // Wait to ensure only `MaxFramesInFlight` number of frames are getting processed
-        // by any stage in the Metal pipeline (CPU, GPU, Metal, Drivers, etc.).
-        dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
-    }
+    // Wait to ensure only `MaxFramesInFlight` number of frames are getting processed
+    // by any stage in the Metal pipeline (CPU, GPU, Metal, Drivers, etc.).
+    dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
 }
 
 /// Responds to the drawable's size or orientation changes.
