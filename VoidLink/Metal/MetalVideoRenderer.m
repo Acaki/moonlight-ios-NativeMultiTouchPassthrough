@@ -48,21 +48,21 @@ static const struct CscParams k_CscParams_Bt709Full = {
     },
     {0.0f, 128.0f / 255.0f, 128.0f / 255.0f},
 };
-static const struct CscParams k_CscParams_Bt2020Lim = {
+static const struct CscParams k_CscParams_Bt2020Lim_10bit = {
     {
         {1.1644f, 0.0f, 1.6781f},
         {1.1644f, -0.1874f, -0.6505f},
         {1.1644f, 2.1418f, 0.0f},
     },
-    {16.0f / 255.0f, 128.0f / 255.0f, 128.0f / 255.0f},
+    {64.0f / 1023.0f, 512.0f / 1023.0f, 512.0f / 1023.0f},
 };
-static const struct CscParams k_CscParams_Bt2020Full = {
+static const struct CscParams k_CscParams_Bt2020Full_10bit = {
     {
         {1.0f, 0.0f, 1.4746f},
         {1.0f, -0.1646f, -0.5714f},
         {1.0f, 1.8814f, 0.0f},
     },
-    {0.0f, 128.0f / 255.0f, 128.0f / 255.0f},
+    {0.0f, 512.0f / 1023.0f, 512.0f / 1023.0f},
 };
 
 struct Vertex {
@@ -221,13 +221,12 @@ static const NSUInteger MaxFramesInFlight = 3;
                 if (CFEqual(frame_trc, kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ)) {
                     isHDR = YES;
                     newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
-                    newPixelFormat = MTLPixelFormatBGR10A2Unorm;
                 } else {
-                    // SDR 2020
+                    // SDR 2020, I'm not sure it's possible to stream this though
                     newColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2020);
-                    newPixelFormat = MTLPixelFormatBGR10A2Unorm;
                 }
-                paramBuffer.cscParams = (fullRange ? k_CscParams_Bt2020Full : k_CscParams_Bt2020Lim);
+                newPixelFormat = MTLPixelFormatBGR10A2Unorm;
+                paramBuffer.cscParams = (fullRange ? k_CscParams_Bt2020Full_10bit : k_CscParams_Bt2020Lim_10bit);
                 break;
             }
             case COLORSPACE_REC_601:
