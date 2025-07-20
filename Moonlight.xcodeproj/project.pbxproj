@@ -55,6 +55,8 @@
 		A12476DF2E14D0B5008D54F5 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = A12476DD2E14D0B2008D54F5 /* Shaders.metal */; };
 		A12476E32E161986008D54F5 /* ImGuiPlots.mm in Sources */ = {isa = PBXBuildFile; fileRef = A12476E22E161982008D54F5 /* ImGuiPlots.mm */; };
 		A12476E42E161986008D54F5 /* ImGuiPlots.mm in Sources */ = {isa = PBXBuildFile; fileRef = A12476E22E161982008D54F5 /* ImGuiPlots.mm */; };
+		A156D0492E2C72DD002E7CA1 /* Shaders-Linear.metal in Sources */ = {isa = PBXBuildFile; fileRef = A156D0482E2C72DD002E7CA1 /* Shaders-Linear.metal */; };
+		A156D04A2E2C72DD002E7CA1 /* Shaders-Linear.metal in Sources */ = {isa = PBXBuildFile; fileRef = A156D0482E2C72DD002E7CA1 /* Shaders-Linear.metal */; };
 		A19562AC2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
 		A19562AD2DE6EDDC005FD7D8 /* imgui_impl_metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */; };
 		A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = A1967D992DEE419B00EFC5CF /* FloatBuffer.m */; };
@@ -272,6 +274,7 @@
 		A13F90582DFC3C5C0010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A13F905C2DFC3C710010BB0F /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		A13F90E22DFD2DE10010BB0F /* MoonlightTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MoonlightTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A156D0482E2C72DD002E7CA1 /* Shaders-Linear.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = "Shaders-Linear.metal"; sourceTree = "<group>"; };
 		A19562AB2DE6EDDC005FD7D8 /* imgui_impl_metal.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = imgui_impl_metal.mm; sourceTree = "<group>"; };
 		A1967D992DEE419B00EFC5CF /* FloatBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FloatBuffer.m; sourceTree = "<group>"; };
 		A1967DB32DF036B800EFC5CF /* Plot.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Plot.h; sourceTree = "<group>"; };
@@ -479,6 +482,7 @@
 			isa = PBXGroup;
 			children = (
 				A12476DD2E14D0B2008D54F5 /* Shaders.metal */,
+				A156D0482E2C72DD002E7CA1 /* Shaders-Linear.metal */,
 				A12476D82E1495FE008D54F5 /* MetalConfig.h */,
 				A12476D52E1495AA008D54F5 /* MetalView.m */,
 				A12476D42E1495A3008D54F5 /* MetalView.h */,
@@ -1074,6 +1078,7 @@
 				A1967D9A2DEE419F00EFC5CF /* FloatBuffer.m in Sources */,
 				FB1A67C5213245EA00507771 /* AppAssetRetriever.m in Sources */,
 				FB1A67C7213245EA00507771 /* PairManager.m in Sources */,
+				A156D0492E2C72DD002E7CA1 /* Shaders-Linear.metal in Sources */,
 				FB1A67C9213245EA00507771 /* WakeOnLanManager.m in Sources */,
 				FB1A67CB213245EA00507771 /* ConnectionHelper.m in Sources */,
 				A12476E32E161986008D54F5 /* ImGuiPlots.mm in Sources */,
@@ -1113,6 +1118,7 @@
 				FB89463219F646E200339C8A /* VideoDecoderRenderer.m in Sources */,
 				A12476D32E14959E008D54F5 /* MetalViewController.m in Sources */,
 				FB290D0419B2C406004C83CF /* AppDelegate.m in Sources */,
+				A156D04A2E2C72DD002E7CA1 /* Shaders-Linear.metal in Sources */,
 				FB9AFD401A7E127D00872C98 /* AppListResponse.m in Sources */,
 				FB89463419F646E200339C8A /* Utils.m in Sources */,
 				FBDE86E619F82297001C18A8 /* UIAppView.m in Sources */,

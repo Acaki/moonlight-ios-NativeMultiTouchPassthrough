@@ -11,15 +11,12 @@ The implementation of the cross-platform game view controller.
 #import "MetalVideoRenderer.h"
 
 @implementation MetalViewController {
-    /// A queue to initialize the renderer asynchronously from the main thread.
-    dispatch_queue_t _dispatch_queue;
     FrameQueue *_frameQueue;
     float _framerate;
     BOOL _enableHdr;
     MetalView *_metalView;
     MetalVideoRenderer *_renderer;
     MetricsHandler _metricsHandler;
-    BOOL _stopping;
 }
 
 - (nonnull instancetype)initWithFrame:(CGRect)bounds framerate:(float)framerate enableHdr:(BOOL)enableHdr metricsHandler:(MetricsHandler)metricsHandler {
@@ -30,7 +27,6 @@ The implementation of the cross-platform game view controller.
         _framerate = framerate;
         _enableHdr = enableHdr;
         _metricsHandler = metricsHandler;
-        _stopping = NO;
     }
     return self;
 }
@@ -41,9 +37,6 @@ The implementation of the cross-platform game view controller.
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-
-    /// A queue to initialize the renderer asynchronously from the main thread.
-    _dispatch_queue = dispatch_queue_create("com.moonlight.Metal", DISPATCH_QUEUE_CONCURRENT);
 
     __block MetalView *view = (MetalView *)self.view;
     if (!view) {
@@ -74,37 +67,44 @@ The implementation of the cross-platform game view controller.
 
     // Initialize the renderer-dependent view properties.
     view.metalLayer.pixelFormat = renderer.colorPixelFormat;
-    view.metalLayer.colorspace = renderer.colorspace;
     view.metalLayer.maximumDrawableCount = 3;
 
     self->_renderer = renderer;
 }
 
 - (void)waitToRenderTo:(nonnull CAMetalLayer *)layer {
-    if (!_stopping) {
-        // Renderer obtains a nextDrawable, waiting if necessary
-        [_renderer waitToRenderTo:layer];
+    // Renderer obtains a nextDrawable, waiting if necessary
+    [_renderer waitToRenderTo:layer];
 
-        // If we don't have a frame yet, wait on that too
-        [_frameQueue waitForEnqueue];
-    }
+    // If we don't have a frame yet, wait on that too
+    [_frameQueue waitForEnqueue];
 }
 
 /// Draw frame (used by manual loop)
 - (void)renderTo:(nonnull CAMetalLayer *)layer {
-    if (!_renderer) {
-        return;
-    }
-
-    CFTimeInterval timeout = (1.0f / _framerate) - _renderer.averageGPUTime;
-    Frame *frame = [_frameQueue dequeueWithTimeout:timeout];
-    if (frame) {
-        [_renderer renderFrame:frame toLayer:layer];
+    if (!_renderer.isStopping) {
+        CFTimeInterval timeout = (1.0f / _framerate) - _renderer.averageGPUTime;
+        Frame *frame = [_frameQueue dequeueWithTimeout:timeout];
+        if (frame) {
+            [_renderer renderFrame:frame toLayer:layer];
+        }
     }
 }
 
 - (void)drawableResize:(CGSize)size {
     [_renderer drawableResize:size];
+}
+
+- (void)shutdown {
+    [_renderer shutdown];
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+
+    Log(LOG_I, @"XXX MetalViewController viewDidDisappear");
+
+    [_metalView shutdown];
 }
 
 #if TARGET_OS_IOS

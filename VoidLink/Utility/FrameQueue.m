@@ -60,6 +60,7 @@
         _ptsCorrection     = CMTimeMake(0, 90000);
         _queueSizeHistory  = [[FloatBuffer alloc] initWithCapacity:64];
         _lock              = OS_UNFAIR_LOCK_INIT;
+        _isStopping        = NO;
 
 	    // ring buffer
 	    _capacity = _maxCapacity;
@@ -225,8 +226,9 @@
 
 // Allows the render loop to wait if the queue is empty
 - (void)waitForEnqueue {
-    while ([self isEmpty]) {
-        dispatch_semaphore_wait(_frameSemaphore, DISPATCH_TIME_FOREVER);
+    while (!self.isStopping && [self isEmpty]) {
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1f * NSEC_PER_SEC)); // 100ms
+        dispatch_semaphore_wait(_frameSemaphore, timeout);
     }
 }
 
@@ -253,6 +255,10 @@
     CFTimeInterval start = CACurrentMediaTime();
     CFTimeInterval deadline = start + timeout;
     int round = 0;
+
+    if (self.isStopping) {
+        return nil;
+    }
 
     // Always attempt to dequeue at least once
     do {
@@ -316,6 +322,13 @@
     int cap = _currentSoftCap;
     os_unfair_lock_unlock(&_lock);
     return cap;
+}
+
+- (void)shutdown {
+    // new frames will no longer be coming in, make sure consumer side is not left waiting
+    self.isStopping = YES;
+    Log(LOG_I, @"XXX FrameQueue shutting down");
+    dispatch_semaphore_signal(_frameSemaphore);
 }
 
 // For use with NSLog("%@", franeQueue);

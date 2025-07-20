@@ -8,9 +8,6 @@
 @implementation MetalView {
     // The secondary thread containing the render loop.
     NSThread *_renderThread;
-
-    // The flag to indicate that rendering needs to cease on the main thread.
-    BOOL _continueRunLoop;
 }
 
 #pragma mark - Initialization and Setup.
@@ -43,6 +40,17 @@
     self.layer.delegate = self;
 }
 
+- (void)shutdown {
+    if (_renderThread) {
+        [_renderThread cancel];
+        // wait for thread to exist
+        while (!_renderThread.isFinished) {
+            Log(LOG_I, @"XXX MetalView waiting on renderThread to finish");
+            usleep(100);
+        }
+    }
+}
+
 #if TARGET_OS_IOS || TARGET_OS_TV
 + (Class)layerClass {
     return [CAMetalLayer class];
@@ -62,17 +70,31 @@
 #endif  // END TARGET_OS_IOS || TARGET_OS_TV
 
 - (void)movedToWindow {
-    // Protect _continueRunLoop with a `@synchronized` block because it's accessed by the separate
-    // animation thread.
-    @synchronized(self) {
-        // Stop the animation loop, allowing it to complete if it's in progress.
-        _continueRunLoop = NO;
+    if (!self.window) {
+        return;
+
+        // We have been removed
+        if (_renderThread) {
+            [_renderThread cancel];
+            // wait for thread to exist
+            while (!_renderThread.isFinished) {
+                Log(LOG_I, @"XXX MetalView waiting on renderThread to finish");
+                usleep(100);
+            }
+        }
+        return;
     }
 
-    // Create and start a secondary NSThread that has another runloop. The NSThread
-    // class calls the 'runThread' method at the start of the secondary thread's execution.
-    _renderThread = [[NSThread alloc] initWithTarget:self selector:@selector(runThread) object:nil];
-    _continueRunLoop = YES;
+    // Render on a new thread
+    _renderThread = [[NSThread alloc] initWithBlock:^{
+        while (![NSThread currentThread].isCancelled) {
+            @autoreleasepool {
+                [self.delegate waitToRenderTo:self.metalLayer];
+                [self.delegate renderTo:self.metalLayer];
+            }
+        }
+        Log(LOG_I, @"XXX Metal renderThread shutting down");
+    }];
     _renderThread.name = @"MetalVideoRenderer";
     _renderThread.qualityOfService = NSQualityOfServiceUserInteractive;
     [_renderThread start];
@@ -93,32 +115,6 @@
     defaultDrawableSize.height *= self.layer.contentsScale;
     [self.delegate drawableResize:defaultDrawableSize];
 #endif
-}
-
-- (void)runThread {
-    // The system sets the '_continueRunLoop' ivar outside this thread, so it needs to synchronize. Create a
-    // 'continueRunLoop' local var that the system can set from the _continueRunLoop ivar in a @synchronized block.
-    BOOL continueRunLoop = YES;
-
-    // Begin the run loop.
-    while (continueRunLoop) {
-        @autoreleasepool {
-            [_delegate waitToRenderTo:_metalLayer];
-
-            @synchronized(self) {
-                continueRunLoop = _continueRunLoop;
-            }
-            if (!continueRunLoop) {
-                break;
-            }
-
-            [_delegate renderTo:_metalLayer];
-
-            @synchronized(self) {
-                continueRunLoop = _continueRunLoop;
-            }
-        }
-    }
 }
 
 #pragma mark - Resizing
