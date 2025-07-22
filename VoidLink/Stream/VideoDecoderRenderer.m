@@ -122,13 +122,13 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     _view = view;
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
-
-    _parameterSetBuffers = [[NSMutableArray alloc] init];
-    _frameQueue = [FrameQueue sharedInstance];
     _maxRefreshRate = [[UIScreen mainScreen] maximumFramesPerSecond];
+    _parameterSetBuffers = [[NSMutableArray alloc] init];
 
     DataManager* dataMan = [[DataManager alloc] init];
 
+    _frameQueue = [FrameQueue sharedInstance];
+    [_frameQueue start];
     [_frameQueue setHighWaterMark:(int)[[dataMan getSettings].frameQueueSize integerValue]];
 
     [self reinitializeDisplayLayer];
@@ -142,6 +142,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     self->_videoFormat = videoFormat;
     self->_frameRate = frameRate;
+
+    // reset plot data in case we've already used it for a previous renderer
+    [[ImGuiPlots sharedInstance] clearData];
 
     DataManager* dataMan = [[DataManager alloc] init];
     if ([[dataMan getSettings].renderingBackend integerValue] == RENDER_AVSB) {
@@ -335,8 +338,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
 - (void)cleanup
 {
-    [_frameQueue shutdown];
-    
+    [_frameQueue stop];
+
     if (_renderingBackend == RENDER_AVSB) {
         [_displayLink invalidate];
     }
