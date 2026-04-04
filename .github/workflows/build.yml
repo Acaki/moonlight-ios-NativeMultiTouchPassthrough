@@ -2,7 +2,7 @@ name: Build VoidLink IPA
 
 on:
   push:
-    branches: [ "feat/frame_pacing_metal" ]
+    branches: [ "fix/resolution_change_streatch" ]
 
 jobs:
   build:
