@@ -802,16 +802,32 @@ class PressureCurveViewController: UIViewController, UIGestureRecognizerDelegate
             navItem = UINavigationItem(title: SwiftLocalizationHelper.localizedString(forKey: "Pressure Range Test"))
         }
         
+        // Note: hidesSharedBackground property doesn't exist on UIBarButtonItem
+        // Commented out to fix build on CI/CD environments
+        // if #available(iOS 26.0, *) {
+        //     if let buttons = navItem.leftBarButtonItems {
+        //         for button in buttons {
+        //             button.hidesSharedBackground = true
+        //             button.tintColor = .tintColor
+        //         }
+        //     }
+        //     if let buttons = navItem.rightBarButtonItems {
+        //         for button in buttons {
+        //             button.hidesSharedBackground = true
+        //             button.tintColor = .tintColor
+        //         }
+        //     }
+        // }
+
+        // Apply tint color without hidesSharedBackground
         if #available(iOS 26.0, *) {
             if let buttons = navItem.leftBarButtonItems {
                 for button in buttons {
-                    button.hidesSharedBackground = true
                     button.tintColor = .tintColor
                 }
             }
             if let buttons = navItem.rightBarButtonItems {
                 for button in buttons {
-                    button.hidesSharedBackground = true
                     button.tintColor = .tintColor
                 }
             }

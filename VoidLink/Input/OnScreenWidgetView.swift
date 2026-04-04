@@ -1250,7 +1250,7 @@ import SVGKit
             self.layer.addSublayer(lrudIndicatorBall)
         }
         
-        lrudIndicatorBall.position = CGPoint(x: self.bounds.width/2, y: self.bounds.height/2,)
+        lrudIndicatorBall.position = CGPoint(x: self.bounds.width/2, y: self.bounds.height/2)
 
         // Set the stroke color and width (border of the circle)
         lrudIndicatorBall.strokeColor = stickBallColor
